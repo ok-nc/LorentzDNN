@@ -2,7 +2,7 @@
 ## Author: Omar Khatib
 
 ## This is a machine learning network designed to aid in the modeling and simulation of metamaterials (MMs). 
-## The original forward network model was developed by Christian Nadell and Bohao Huang in tensoflow, and further optimized and ported to pytorch by Ben Ren. 
+### The original forward network model was developed by Christian Nadell and Bohao Huang in tensoflow, and further optimized and ported to pytorch by Ben Ren. 
 
 ### The main aim of this project is to incorporate known physics relations to improve deep learning applied to MM systems. 
 ### The fundamental relationships involve using Lorentz oscillator equations as the basis for mapping an input geometry to output transmission, reflection, or absorption spectra. 
