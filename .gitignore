@@ -1,0 +1,8 @@
+dataIn
+models
+figs
+*/*.csv
+*/*.png
+*/*.jpg
+*/*.sh
+
