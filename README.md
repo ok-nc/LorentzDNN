@@ -4,7 +4,7 @@
 ## This is a machine learning network designed to aid in the modeling and simulation of metamaterials (MMs). 
 ### The original forward network model was developed by Christian Nadell and Bohao Huang in tensoflow, and further optimized and ported to pytorch by Ben Ren. 
 
-### The main aim of this project is to incorporate known physics relations to improve deep learning applied to MM systems. 
+### The main aim of this project is to incorporate known physics relations to improve deep learning networks applied to MM systems. 
 ### The fundamental relationships involve using Lorentz oscillator equations as the basis for mapping an input geometry to output transmission, reflection, or absorption spectra. 
 
 # Developer Log:
@@ -22,8 +22,10 @@ Can achieve MSE ~ 5e-3, but fits do not look good. Need better architecture/stra
 Old forward model (linear + conv layers) can achieve ~ 6-8e-4 MSE without Lorentz layer.  
 
 ## To dos:
-1. Find best way to initialize params + best optimizer. 
-2. Pretrain on single spectrum
-3. Lorentz activation functions
+1. Organize plotting and analysis functions 
+2. Add parameter visualizations to tensorboard
+3. Find best way to initialize params + best optimizer. 
+4. Pretrain on single spectrum
+5. Lorentz activation functions
 
 

@@ -173,17 +173,7 @@ class Network(object):
                 #                              Ytruth=spectra[2, :].cpu().data.numpy())
                 #     self.log.add_figure(tag='Sample 2 Test Prediction'.format(2), figure=f, global_step=epoch)
                 # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=logit[3, :].cpu().data.numpy(),
-                #                              Ytruth=spectra[3, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample 3 Test Prediction'.format(3), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=logit[4, :].cpu().data.numpy(),
-                #                              Ytruth=spectra[4, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample 4 Test Prediction'.format(4), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=logit[5, :].cpu().data.numpy(),
-                #                              Ytruth=spectra[5, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample 5 Test Prediction'.format(5), figure=f, global_step=epoch)
+
                 # Set to Evaluation Mode
                 self.model.eval()
                 print("Doing Evaluation on the model now")
