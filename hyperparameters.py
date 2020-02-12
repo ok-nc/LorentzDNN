@@ -2,9 +2,9 @@
 Parameter file for specifying the running parameters for forward model
 """
 # Model Architectural Parameters
-USE_LORENTZ = False
-USE_CONV = True                         # Whether use upconv layer when not using lorentz @Omar
-LINEAR = [8, 150, 150, 150, 150]
+USE_LORENTZ = True
+USE_CONV = False                         # Whether use upconv layer when not using lorentz @Omar
+LINEAR = [8, 150, 150, 150, 12]
 FIX_W0 = False
 # If the Lorentzian is Flase
 CONV_OUT_CHANNEL = [4, 4, 4]
@@ -14,7 +14,7 @@ CONV_STRIDE = [2, 1, 1]
 # Optimization parameters
 OPTIM = "Adam"
 REG_SCALE = 1e-3
-BATCH_SIZE = 512
+BATCH_SIZE = 2
 EVAL_STEP = 20
 TRAIN_STEP = 1000
 LEARN_RATE = 1e-3
@@ -27,10 +27,11 @@ X_RANGE = [i for i in range(0, 8 )]
 Y_RANGE = [i for i in range(8 , 308 )]
 FORCE_RUN = True
 DATA_DIR = '../'                # For local usage
-DATA_DIR = '/home/omar/PycharmProjects/mlmOK_Pytorch/'                # For Omar laptop usage
+DATA_DIR = 'C:/Users/labuser/mlmOK_Pytorch/'                # For Omar office desktop usage
 GEOBOUNDARY =[20, 200, 20, 100]
-NORMALIZE_INPUT = True
+NORMALIZE_INPUT = False
 TEST_RATIO = 0.2
+PRE_TRAIN = True
 
 # Running specific
 USE_CPU_ONLY = False

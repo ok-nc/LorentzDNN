@@ -32,7 +32,7 @@ def training_from_flag(flags):
                                                      batch_size=flags.batch_size,
                                                      normalize_input=flags.normalize_input,
                                                      data_dir=flags.data_dir,
-                                                     test_ratio=flags.test_ratio)
+                                                     test_ratio=flags.test_ratio,pre_train=flags.pre_train)
     # Reset the boundary if normalized
     if flags.normalize_input:
         flags.geoboundary_norm = [-1, 1, -1, 1]
@@ -47,7 +47,7 @@ def training_from_flag(flags):
     print("Start training now...")
     ntwk.train()
 
-    # Do the house keeping, write the parameters and put into folder, also use pickle to save the flags obejct
+    # Do the house keeping, write the parameters and put into folder, also use pickle to save the flags object
     write_flags_and_BVE(flags, ntwk.best_validation_loss, ntwk.ckpt_dir)
     # put_param_into_folder(ntwk.ckpt_dir)
 

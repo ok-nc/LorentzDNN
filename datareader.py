@@ -50,7 +50,7 @@ def check_data(input_directory, col_range=range(0, 8), col_names=('r1','r2','r3'
 
 
 def read_data( x_range, y_range, geoboundary,  batch_size=128,
-                 data_dir=os.path.abspath(''), rand_seed=1234, normalize_input = True, test_ratio = 0.2 ):
+                 data_dir=os.path.abspath(''), rand_seed=1234, normalize_input = True, test_ratio = 0.2, pre_train = False):
     """
       :param input_size: input size of the arrays
       :param output_size: output size of the arrays
@@ -64,18 +64,23 @@ def read_data( x_range, y_range, geoboundary,  batch_size=128,
       :param rand_seed: random seed
       :param test_ratio: if this is not 0, then split test data from training data at this ratio
                          if this is 0, use the dataIn/eval files to make the test set
+      :param pre_train: if this is true, get data from pretrain folder
       """
 
     # Import data files
     print('Importing data files...')
-    ftrTrain, lblTrain = importData(os.path.join(data_dir, 'dataIn'), x_range, y_range)
-    if (test_ratio > 0):
-        print("Splitting data into training and test sets with a ratio of:", str(test_ratio))
-        ftrTrain, ftrTest, lblTrain, lblTest = train_test_split(ftrTrain, lblTrain,
-                                                                test_size=test_ratio, random_state=rand_seed)
-    else:
-        print("Using separate file from dataIn/Eval as test set")
-        ftrTest, lblTest = importData(os.path.join(data_dir, 'dataIn', 'eval'), x_range, y_range)
+    if pre_train:
+        ftrTrain, lblTrain = importData(os.path.join(data_dir, 'dataIn', 'pretrain'), x_range, y_range)
+        ftrTest, lblTest = importData(os.path.join(data_dir, 'dataIn', 'pretrain'), x_range, y_range)
+    else
+        ftrTrain, lblTrain = importData(os.path.join(data_dir, 'dataIn'), x_range, y_range)
+        if (test_ratio > 0):
+            print("Splitting data into training and test sets with a ratio of:", str(test_ratio))
+            ftrTrain, ftrTest, lblTrain, lblTest = train_test_split(ftrTrain, lblTrain,
+                                                                    test_size=test_ratio, random_state=rand_seed)
+        else:
+            print("Using separate file from dataIn/Eval as test set")
+            ftrTest, lblTest = importData(os.path.join(data_dir, 'dataIn', 'eval'), x_range, y_range)
 
     print('Total number of training samples is {}'.format(len(ftrTrain)))
     print('Total number of test samples is {}'.format(len(ftrTest)))

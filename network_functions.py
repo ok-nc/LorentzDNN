@@ -145,17 +145,6 @@ class Network(object):
                 #     for j in range(self.flags.num_plot_compare):
                         # f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
                         #                          Ytruth=spectra[j, :].cpu().data.numpy(),
-                        #                          E2=self.model.e2[j, :, :],
-                        #                          E1=self.model.e1[j, :, :],
-                        #                          eps_inf=self.model.eps_inf[j])
-                        # self.log.add_figure(tag='E1&E2{}'.format(j), figure=f, global_step=epoch)
-                        # f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
-                        #                         Ytruth=spectra[j, :].cpu().data.numpy(),
-                        #                         N=self.model.N[j, :],
-                        #                         K=self.model.K[j, :])
-                        # self.log.add_figure(tag='N&K{}'.format(j), figure=f, global_step=epoch)
-                        # f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
-                        #                          Ytruth=spectra[j, :].cpu().data.numpy(),
                         #                          T=self.model.T_each_lor[j, :],
                         #                          eps_inf = self.model.eps_inf[j])
                         #self.log.add_figure(tag='T{}'.format(j), figure=f, global_step=epoch)
@@ -201,6 +190,90 @@ class Network(object):
 
                     if self.best_validation_loss < self.flags.stop_threshold:
                         print("Training finished EARLIER at epoch %d, reaching loss of %.5f" %\
+                              (epoch, self.best_validation_loss))
+                        return None
+
+            # Learning rate decay upon plateau
+            self.lr_scheduler.step(train_avg_loss)
+        self.log.close()
+
+    def pretrain(self):
+        """
+        The pretraining function. This would start the training using information given in the flags
+        :return: None
+        """
+        cuda = True if torch.cuda.is_available() else False
+        if cuda:
+            self.model.cuda()
+
+        # Construct optimizer after the model moved to GPU
+        self.optm = self.make_optimizer()
+        self.lr_scheduler = self.make_lr_scheduler()
+
+        for epoch in range(self.flags.train_step):
+            # print("This is training Epoch {}".format(epoch))
+            # Set to Training Mode
+            train_loss = 0
+            self.model.train()
+            for j, (geometry, spectra) in enumerate(self.train_loader):
+                if cuda:
+                    geometry = geometry.cuda()                          # Put data onto GPU
+                    spectra = spectra.cuda()                            # Put data onto GPU
+                self.optm.zero_grad()                               # Zero the gradient first
+                logit = self.model(geometry)                        # Get the output
+                # print("logit type:", logit.dtype)
+                # print("spectra type:", spectra.dtype)
+                loss = self.make_loss(logit, spectra)              # Get the loss tensor
+                loss.backward()                                # Calculate the backward gradients
+                torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
+                self.optm.step()                                    # Move one step the optimizer
+                train_loss += loss                                  # Aggregate the loss
+
+            # Calculate the avg loss of training
+            train_avg_loss = train_loss.cpu().data.numpy() / (j+1)
+
+            if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
+                # Record the training loss to the tensorboard
+                #train_avg_loss = train_loss.data.numpy() / (j+1)
+                self.log.add_scalar('Loss/pretrain', train_avg_loss, epoch)
+
+                for j in range(self.flags.num_plot_compare):
+                    f = self.compare_spectra(Ypred=logit[0, :].cpu().data.numpy(),
+                                             Ytruth=spectra[0, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Sample 1 Test Prediction'.format(1), figure=f, global_step=epoch)
+                # for j in range(self.flags.num_plot_compare):
+                #     f = self.compare_spectra(Ypred=logit[2, :].cpu().data.numpy(),
+                #                              Ytruth=spectra[2, :].cpu().data.numpy())
+                #     self.log.add_figure(tag='Sample 2 Test Prediction'.format(2), figure=f, global_step=epoch)
+                # for j in range(self.flags.num_plot_compare):
+
+                # Set to Evaluation Mode
+                self.model.eval()
+                print("Doing Evaluation on the model now")
+                test_loss = 0
+                for j, (geometry, spectra) in enumerate(self.test_loader):  # Loop through the eval set
+                    if cuda:
+                        geometry = geometry.cuda()
+                        spectra = spectra.cuda()
+                    logit = self.model(geometry)
+                    loss = self.make_loss(logit, spectra)                   # compute the loss
+                    test_loss += loss                                       # Aggregate the loss
+
+                # Record the testing loss to the tensorboard
+                test_avg_loss = test_loss.cpu().data.numpy() / (j+1)
+                self.log.add_scalar('Loss/test', test_avg_loss, epoch)
+
+                print("This is Epoch %d, pretraining loss %.5f, validation loss %.5f" \
+                      % (epoch, train_avg_loss, test_avg_loss ))
+
+                # Model improving, save the model down
+                if test_avg_loss < self.best_validation_loss:
+                    self.best_validation_loss = test_avg_loss
+                    self.save()
+                    print("Saving the model...")
+
+                    if self.best_validation_loss < self.flags.stop_threshold:
+                        print("Pretraining finished EARLIER at epoch %d, reaching loss of %.5f" %\
                               (epoch, self.best_validation_loss))
                         return None
 

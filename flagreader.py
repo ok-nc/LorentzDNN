@@ -48,6 +48,7 @@ def read_flag():
     parser.add_argument('--normalize-input', default=NORMALIZE_INPUT, type=bool,
                         help='whether we should normalize the input or not')
     parser.add_argument('--test-ratio', default=TEST_RATIO, type=float, help='the ratio of test case')
+    parser.add_argument('--pre-train', default=PRE_TRAIN, type=bool, help='for pre-training')
 
     # Running specific
     parser.add_argument('--eval-model', default=EVAL_MODEL, type=str,
@@ -99,7 +100,7 @@ def write_flags_and_BVE(flags, best_validation_loss):
     # yrange_str = str(yrange[0]) + ' to ' + str(yrange[-1])
     yrange_str = [yrange[0], yrange[-1]]
     flags_dict = vars(flags)
-    flags_dict_copy = flags_dict.copy()                 # in order to not corrupt the original data strucutre
+    flags_dict_copy = flags_dict.copy()                 # in order to not corrupt the original data structure
     flags_dict_copy['y_range'] = yrange_str             # Change the y range to be acceptable long string
     flags_dict_copy['best_validation_loss'] = best_validation_loss #Append the bvl
     # Convert the dictionary into pandas data frame which is easier to handle with and write read
