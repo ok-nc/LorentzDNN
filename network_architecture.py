@@ -110,8 +110,6 @@ class Forward(nn.Module):
                 epsilon_inf = epsilon_inf.cuda()
             out = out[:,0:-1].view([-1, int(out.size(1)/3), 3])
 
-            last_Lor_layer = out
-
             # Get the list of params for lorentz, also add one extra dimension at 3rd one to
             if self.fix_w0:
                 w0 = self.w0.unsqueeze(0).unsqueeze(2)
@@ -205,7 +203,7 @@ class Forward(nn.Module):
             # print("T size",T.size())
             # Last step, sum up except for the 0th dimension of batch_size (deprecated since we sum at e above)
             # T = torch.sum(T, 1).float()
-            return T, last_Lor_layer
+            return T
 
         # The normal mode to train without Lorentz
         if self.use_conv:

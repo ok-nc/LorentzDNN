@@ -4,7 +4,7 @@ Parameter file for specifying the running parameters for forward model
 # Model Architectural Parameters
 USE_LORENTZ = True
 USE_CONV = False                         # Whether use upconv layer when not using lorentz @Omar
-LINEAR = [8, 150, 150, 150, 12]
+LINEAR = [8, 300, 12]
 FIX_W0 = False
 # If the Lorentzian is Flase
 CONV_OUT_CHANNEL = [4, 4, 4]

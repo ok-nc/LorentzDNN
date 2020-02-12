@@ -10,6 +10,8 @@ import flagreader
 import datareader
 from network_functions import Network
 from network_architecture import Forward
+# from network_lorentz import Network
+# from network_lorentz import Forward
 from logging_functions import put_param_into_folder, write_flags_and_BVE
 
 
