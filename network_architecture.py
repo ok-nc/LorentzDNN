@@ -124,12 +124,7 @@ class Forward(nn.Module):
             # self.wps = wp.data.cpu().numpy()
             # self.gs = g.data.cpu().numpy()
 
-            # for j in range(4):
-            #     last_Lor_layer[:,3*j] = w0[:,j].squeeze()
-            #     last_Lor_layer[:, 3*j+1] = wp[:,j].squeeze()
-            #     last_Lor_layer[:, 3*j+2] = g[:,j].squeeze()
-
-            #print(last_Lor_layer.size())
+                #print(last_Lor_layer.size())
             #print(g.size())
             self.eps_inf = epsilon_inf.data.cpu().numpy()
 

@@ -223,6 +223,8 @@ class Network(object):
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
                 # print("logit type:", logit.dtype)
                 # print("spectra type:", spectra.dtype)
+                # print(logit)
+                # print(lor_params)
                 loss = self.make_loss(last_Lor_layer, lor_params)              # Get the loss tensor
                 loss.backward()                                # Calculate the backward gradients
                 torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
@@ -237,15 +239,15 @@ class Network(object):
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Loss/pretrain', train_avg_loss, epoch)
 
-                # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=last_Lor_layer[0, :].cpu().data.numpy(),
-                #                              Ytruth=lor_params[0, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample 1 Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=logit[2, :].cpu().data.numpy(),
-                #                              Ytruth=spectra[2, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample 2 Test Prediction'.format(2), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
+                for j in range(self.flags.num_plot_compare):
+                    f = self.compare_spectra(Ypred=logit[0, :].cpu().data.numpy(),
+                                             Ytruth=logit[0, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Sample 1 Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
+                for j in range(self.flags.num_plot_compare):
+                    f = self.compare_spectra(Ypred=logit[1, :].cpu().data.numpy(),
+                                             Ytruth=logit[1, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Sample 2 Test Prediction'.format(2), figure=f, global_step=epoch)
+
 
                 # Set to Evaluation Mode
                 self.model.eval()
