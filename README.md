@@ -23,7 +23,7 @@ Old forward model (linear + conv layers) can achieve ~ 6-8e-4 MSE without Lorent
 
 ## To dos:
 1. Organize plotting and analysis functions 
-2. Add parameter visualization to tensorboard
+2. Add parameter visualizations to tensorboard
 3. Find best way to initialize params + best optimizer. 
 4. Pretrain on single spectrum
 5. Lorentz activation functions

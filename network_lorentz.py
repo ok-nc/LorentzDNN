@@ -91,7 +91,7 @@ class Forward(nn.Module):
             epsilon_inf = epsilon_inf.cuda()
         out = out[:,0:-1].view([-1, int(out.size(1)/3), 3])
 
-        last_Lor_layer = out
+
 
         # Get the list of params for lorentz, also add one extra dimension at 3rd one to
         if self.fix_w0:
@@ -105,6 +105,9 @@ class Forward(nn.Module):
         # self.w0s = w0.data.cpu().numpy()
         # self.wps = wp.data.cpu().numpy()
         # self.gs = g.data.cpu().numpy()
+
+        last_Lor_layer = out
+
         self.eps_inf = epsilon_inf.data.cpu().numpy()
 
         # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)

@@ -95,11 +95,12 @@ class Forward(nn.Module):
                 out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
             else:
                 out = bn(fc(out))
-
+            #print(out.size())
         # If use lorentzian layer, pass this output to the lorentzian layer
         if self.use_lorentz:
             out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
             #out = F.relu(out) + 0.00001
+            last_Lor_layer = out[:,:-1]
 
             # Get the out into (batch_size, num_lorentz, 3) and the last epsilon_inf baseline
             epsilon_inf = out[:,-1]  # For debugging purpose now
@@ -122,6 +123,14 @@ class Forward(nn.Module):
             # self.w0s = w0.data.cpu().numpy()
             # self.wps = wp.data.cpu().numpy()
             # self.gs = g.data.cpu().numpy()
+
+            # for j in range(4):
+            #     last_Lor_layer[:,3*j] = w0[:,j].squeeze()
+            #     last_Lor_layer[:, 3*j+1] = wp[:,j].squeeze()
+            #     last_Lor_layer[:, 3*j+2] = g[:,j].squeeze()
+
+            #print(last_Lor_layer.size())
+            #print(g.size())
             self.eps_inf = epsilon_inf.data.cpu().numpy()
 
             # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
@@ -203,7 +212,7 @@ class Forward(nn.Module):
             # print("T size",T.size())
             # Last step, sum up except for the 0th dimension of batch_size (deprecated since we sum at e above)
             # T = torch.sum(T, 1).float()
-            return T
+            return T, last_Lor_layer
 
         # The normal mode to train without Lorentz
         if self.use_conv:
@@ -215,7 +224,7 @@ class Forward(nn.Module):
             # Final touch, because the input is normalized to [-1,1]
             # S = tanh(out.squeeze())
             out = out.squeeze()
-        return out
+        return out, out
 
 
 

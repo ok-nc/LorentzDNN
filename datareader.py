@@ -71,8 +71,9 @@ def read_data( x_range, y_range, geoboundary,  batch_size=128,
     print('Importing data files...')
     if pre_train:
         ftrTrain, lblTrain = importData(os.path.join(data_dir, 'dataIn', 'pretrain'), x_range, y_range)
-        ftrTest, lblTest = importData(os.path.join(data_dir, 'dataIn', 'pretrain'), x_range, y_range)
-    else
+        ftrTrain, ftrTest, lblTrain, lblTest = train_test_split(ftrTrain, lblTrain,
+                                                                test_size=test_ratio, random_state=rand_seed)
+    else:
         ftrTrain, lblTrain = importData(os.path.join(data_dir, 'dataIn'), x_range, y_range)
         if (test_ratio > 0):
             print("Splitting data into training and test sets with a ratio of:", str(test_ratio))
