@@ -213,7 +213,7 @@ class Network(object):
         tb.configure(argv=[None, '--logdir', self.ckpt_dir])
         url = tb.launch()
 
-        for epoch in range(self.flags.train_step):
+        for epoch in range(1000):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = 0
@@ -240,36 +240,19 @@ class Network(object):
             if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
                 # Record the training loss to the tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
-                self.log.add_scalar('Loss/pretrain', train_avg_loss, epoch)
+                self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
 
                 for j in range(self.flags.num_plot_compare):
                     f = self.compare_spectra(Ypred=last_Lor_layer[j, :].cpu().data.numpy(),
                                              Ytruth=lor_params[j, :].cpu().data.numpy())
                     self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
 
+                print("This is Epoch %d, pretraining loss %.5f" \
+                      % (epoch, train_avg_loss ))
 
-                # Set to Evaluation Mode
-                self.model.eval()
-                print("Doing Evaluation on the model now")
-                test_loss = 0
-                for j, (geometry, lor_params) in enumerate(pretest_loader):  # Loop through the eval set
-                    if cuda:
-                        geometry = geometry.cuda()
-                        lor_params = lor_params.cuda()
-                    logit, last_Lor_layer = self.model(geometry)
-                    loss = self.make_loss(last_Lor_layer, lor_params)                   # compute the loss
-                    test_loss += loss                                       # Aggregate the loss
-
-                # Record the testing loss to the tensorboard
-                test_avg_loss = test_loss.cpu().data.numpy() / (j+1)
-                self.log.add_scalar('Pretrain Loss/test', test_avg_loss, epoch)
-
-                print("This is Epoch %d, pretraining loss %.5f, validation loss %.5f" \
-                      % (epoch, train_avg_loss, test_avg_loss ))
-
-                # Model improving, save the model down
-                if test_avg_loss < self.best_validation_loss:
-                    self.best_validation_loss = test_avg_loss
+                # Model improving, save the model
+                if train_avg_loss < self.best_validation_loss:
+                    self.best_validation_loss = train_avg_loss
                     self.save()
                     print("Saving the model...")
 

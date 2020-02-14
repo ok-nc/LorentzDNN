@@ -96,6 +96,8 @@ class Forward(nn.Module):
             else:
                 out = bn(fc(out))
             #print(out.size())
+            out = torch.sigmoid(out)
+            last_lor_layer = out
         # If use lorentzian layer, pass this output to the lorentzian layer
         if self.use_lorentz:
             out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now

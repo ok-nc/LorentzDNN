@@ -71,21 +71,28 @@ def read_data( x_range, y_range, geoboundary,  batch_size=128,
     print('Importing data files...')
     if pre_train:
         ftrTrain, lblTrain = importData(os.path.join(data_dir, 'dataIn', 'pretrain'), x_range, y_range)
-        ftrTrain, ftrTest, lblTrain, lblTest = train_test_split(ftrTrain, lblTrain,
-                                                                test_size=test_ratio, random_state=rand_seed)
+        ftrTest = ftrTrain
+        lblTest = lblTrain
+        # trTrain, ftrTest, lblTrain, lblTest = train_test_split(ftrTrain, lblTrain,
+        #                                                          test_size=test_ratio, random_state=rand_seed)
+        print('Total number of pretraining samples is {}'.format(len(ftrTrain)))
+        print('Length of an output parameter set is {}'.format(len(lblTrain[0])))
     else:
         ftrTrain, lblTrain = importData(os.path.join(data_dir, 'dataIn'), x_range, y_range)
         if (test_ratio > 0):
             print("Splitting data into training and test sets with a ratio of:", str(test_ratio))
             ftrTrain, ftrTest, lblTrain, lblTest = train_test_split(ftrTrain, lblTrain,
                                                                     test_size=test_ratio, random_state=rand_seed)
+            print('Total number of training samples is {}'.format(len(ftrTrain)))
+            print('Total number of test samples is {}'.format(len(ftrTest)))
+            print('Length of an output spectrum is {}'.format(len(lblTest[0])))
         else:
             print("Using separate file from dataIn/Eval as test set")
             ftrTest, lblTest = importData(os.path.join(data_dir, 'dataIn', 'eval'), x_range, y_range)
 
-    print('Total number of training samples is {}'.format(len(ftrTrain)))
-    print('Total number of test samples is {}'.format(len(ftrTest)))
-    print('Length of an output spectrum is {}'.format(len(lblTest[0])))
+    # print('Total number of training samples is {}'.format(len(ftrTrain)))
+    # print('Total number of test samples is {}'.format(len(ftrTest)))
+    # print('Length of an output spectrum is {}'.format(len(lblTest[0])))
     # print('downsampling output curves')
     # resample the output curves so that there are not so many output points
     if len(lblTrain[0]) > 2000:                                 # For Omar data set
