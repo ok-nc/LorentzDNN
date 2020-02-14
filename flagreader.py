@@ -54,7 +54,7 @@ def read_flag():
                         help='the folder name of the model that you want to evaluate')
     parser.add_argument('--use-cpu-only', type=bool, default=USE_CPU_ONLY,
                         help='The boolean flag that indicate use CPU only')
-    parser.add_argument('--num-plot-compare', type=int, default=NUM_COM_PLOT_TENSORBOARD,
+    parser.add_argument('--num-plot-compare', type=int, default=NUM_PLOT_COMPARE,
                         help='#Plots to store in tensorboard during training for spectra compare')
     parser.add_argument('--model-name', default=MODEL_NAME, type=str, help='name of the model')
     flags = parser.parse_args()  # This is for command line version of the code

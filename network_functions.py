@@ -9,6 +9,7 @@ import time
 import torch
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
+from tensorboard import program
 #from torchsummary import summary
 from torch.optim import lr_scheduler
 
@@ -114,6 +115,9 @@ class Network(object):
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
         self.lr_scheduler = self.make_lr_scheduler()
+        tb = program.TensorBoard()
+        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
+        url = tb.launch()
 
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
@@ -154,14 +158,10 @@ class Network(object):
                     # self.log.add_histogram("g_histogram", self.model.gs, epoch)
 
                 for j in range(self.flags.num_plot_compare):
-                    f = self.compare_spectra(Ypred=logit[0, :].cpu().data.numpy(),
-                                             Ytruth=spectra[0, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample 1 Test Prediction'.format(1), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=logit[2, :].cpu().data.numpy(),
-                #                              Ytruth=spectra[2, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample 2 Test Prediction'.format(2), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
+                    f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
+                                             Ytruth=spectra[j, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Sample ' + str(j) +') Transmission Spectrum'.format(1), figure=f, global_step=epoch)
+
 
                 # Set to Evaluation Mode
                 self.model.eval()
@@ -209,6 +209,9 @@ class Network(object):
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
         self.lr_scheduler = self.make_lr_scheduler()
+        tb = program.TensorBoard()
+        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
+        url = tb.launch()
 
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
@@ -240,13 +243,9 @@ class Network(object):
                 self.log.add_scalar('Loss/pretrain', train_avg_loss, epoch)
 
                 for j in range(self.flags.num_plot_compare):
-                    f = self.compare_spectra(Ypred=logit[0, :].cpu().data.numpy(),
-                                             Ytruth=logit[0, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample 1 Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
-                for j in range(self.flags.num_plot_compare):
-                    f = self.compare_spectra(Ypred=logit[1, :].cpu().data.numpy(),
-                                             Ytruth=logit[1, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample 2 Test Prediction'.format(2), figure=f, global_step=epoch)
+                    f = self.compare_spectra(Ypred=last_Lor_layer[j, :].cpu().data.numpy(),
+                                             Ytruth=lor_params[j, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
 
 
                 # Set to Evaluation Mode
@@ -263,7 +262,7 @@ class Network(object):
 
                 # Record the testing loss to the tensorboard
                 test_avg_loss = test_loss.cpu().data.numpy() / (j+1)
-                self.log.add_scalar('Loss/test', test_avg_loss, epoch)
+                self.log.add_scalar('Pretrain Loss/test', test_avg_loss, epoch)
 
                 print("This is Epoch %d, pretraining loss %.5f, validation loss %.5f" \
                       % (epoch, train_avg_loss, test_avg_loss ))
@@ -322,7 +321,8 @@ class Network(object):
         # Make the frequency into real frequency in THz
         fre_low = 0.5
         fre_high = 5
-        frequency = fre_low + (fre_high - fre_low) / len(Ytruth) * np.arange(300)
+        num_points = len(Ypred)
+        frequency = fre_low + (fre_high - fre_low) / len(Ytruth) * np.arange(num_points)
         f = plt.figure(figsize=figsize)
         plt.plot(frequency, Ypred, label='Pred')
         plt.plot(frequency, Ytruth, label='Truth')
