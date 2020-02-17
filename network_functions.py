@@ -130,8 +130,8 @@ class Network(object):
                     spectra = spectra.cuda()                            # Put data onto GPU
                 self.optm.zero_grad()                               # Zero the gradient first
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
-                # print("logit type:", logit.dtype)
-                # print("spectra type:", spectra.dtype)
+                #print("logit type:", logit.dtype)
+                #print("spectra type:", spectra.dtype)
                 loss = self.make_loss(logit, spectra)              # Get the loss tensor
                 loss.backward()                                # Calculate the backward gradients
                 torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
@@ -213,7 +213,7 @@ class Network(object):
         tb.configure(argv=[None, '--logdir', self.ckpt_dir])
         url = tb.launch()
 
-        for epoch in range(1000):
+        for epoch in range(500):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = 0
@@ -224,8 +224,8 @@ class Network(object):
                     lor_params = lor_params.cuda()                            # Put data onto GPU
                 self.optm.zero_grad()                               # Zero the gradient first
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
-                # print("logit type:", logit.dtype)
-                # print("spectra type:", spectra.dtype)
+                # print("logit size:", last_Lor_layer.size())
+                # print("label size:", lor_params.size())
                 # print(logit)
                 # print(lor_params)
                 loss = self.make_loss(last_Lor_layer, lor_params)              # Get the loss tensor
@@ -247,6 +247,10 @@ class Network(object):
                                              Ytruth=lor_params[j, :].cpu().data.numpy())
                     self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
 
+                f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
+                self.log.add_figure(tag='MSE loss Histogram'.format(1), figure=f2,
+                                    global_step=epoch)
+
                 print("This is Epoch %d, pretraining loss %.5f" \
                       % (epoch, train_avg_loss ))
 
@@ -263,6 +267,7 @@ class Network(object):
 
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
+
         self.log.close()
 
     def evaluate(self, save_dir='data/'):
@@ -271,6 +276,7 @@ class Network(object):
         if cuda:
             self.model.cuda()
         self.model.eval()                       # Evaluation mode
+
 
         # Get the file names
         Ypred_file = os.path.join(save_dir, 'test_Ypred_{}.csv'.format(self.saved_model))
@@ -331,3 +337,20 @@ class Network(object):
         if title is not None:
             plt.title(title)
         return f
+
+    def plotMSELossDistrib(self, pred, truth):
+
+        # mae, mse = compare_truth_pred(pred_file, truth_file)
+        # mae = np.mean(np.abs(pred - truth), axis=1)
+        mse = np.mean(np.square(pred - truth), axis=1)
+
+        f = plt.figure(figsize=(12, 6))
+        plt.hist(mse, bins=100)
+        plt.xlabel('Mean Squared Error')
+        plt.ylabel('Count')
+        plt.suptitle('Model (Avg MSE={:.4e})'.format(np.mean(mse)))
+        # plt.savefig(os.path.join(os.path.abspath(''), 'models',
+        #                          'MSEdistrib_{}.png'.format(flags.model_name)))
+        return f
+        # plt.show()
+        # print('Backprop (Avg MSE={:.4e})'.format(np.mean(mse)))

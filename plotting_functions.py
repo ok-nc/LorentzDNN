@@ -16,7 +16,7 @@ from scipy.sparse.csgraph import minimum_spanning_tree
 
 def RetrieveFeaturePredictionNMse(model_name):
     """
-    Retrieve the Feature and Prediciton values and place in a np array
+    Retrieve the Feature and Prediction values and place in a np array
     :param model_name: the name of the model
     return Xtruth, Xpred, Ytruth, Ypred
     """
