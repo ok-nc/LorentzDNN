@@ -10,6 +10,7 @@ import flagreader
 import datareader
 from network_functions import Network
 from network_architecture import Forward
+import evaluate_model as eval
 # from network_lorentz import Network
 # from network_lorentz import Forward
 from logging_functions import put_param_into_folder, write_flags_and_BVE
@@ -56,12 +57,13 @@ def training_from_flag(flags):
 
     # Training process
     print("Start training now...")
+    ntwk.pretrain(pretrain_loader, pretest_loader)
     ntwk.train()
-    #ntwk.pretrain(pretrain_loader, pretest_loader)
 
     # Do the house keeping, write the parameters and put into folder, also use pickle to save the flags object
     write_flags_and_BVE(flags, ntwk.best_validation_loss, ntwk.ckpt_dir)
     # put_param_into_folder(ntwk.ckpt_dir)
+
 
 
 if __name__ == '__main__':

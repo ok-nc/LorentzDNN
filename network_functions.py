@@ -9,6 +9,7 @@ import time
 import torch
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
+from tensorboard import program
 #from torchsummary import summary
 from torch.optim import lr_scheduler
 
@@ -114,6 +115,9 @@ class Network(object):
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
         self.lr_scheduler = self.make_lr_scheduler()
+        tb = program.TensorBoard()
+        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
+        url = tb.launch()
 
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
@@ -126,8 +130,8 @@ class Network(object):
                     spectra = spectra.cuda()                            # Put data onto GPU
                 self.optm.zero_grad()                               # Zero the gradient first
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
-                # print("logit type:", logit.dtype)
-                # print("spectra type:", spectra.dtype)
+                #print("logit type:", logit.dtype)
+                #print("spectra type:", spectra.dtype)
                 loss = self.make_loss(logit, spectra)              # Get the loss tensor
                 loss.backward()                                # Calculate the backward gradients
                 torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
@@ -154,14 +158,13 @@ class Network(object):
                     # self.log.add_histogram("g_histogram", self.model.gs, epoch)
 
                 for j in range(self.flags.num_plot_compare):
-                    f = self.compare_spectra(Ypred=logit[0, :].cpu().data.numpy(),
-                                             Ytruth=spectra[0, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample 1 Test Prediction'.format(1), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=logit[2, :].cpu().data.numpy(),
-                #                              Ytruth=spectra[2, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample 2 Test Prediction'.format(2), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
+                    f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
+                                             Ytruth=spectra[j, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Sample ' + str(j) +') Transmission Spectrum'.format(1), figure=f, global_step=epoch)
+
+                f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
+                self.log.add_figure(tag='Single Batch Training MSE Histogram'.format(1), figure=f2,
+                                    global_step=epoch)
 
                 # Set to Evaluation Mode
                 self.model.eval()
@@ -209,8 +212,11 @@ class Network(object):
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
         self.lr_scheduler = self.make_lr_scheduler()
+        tb = program.TensorBoard()
+        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
+        url = tb.launch()
 
-        for epoch in range(self.flags.train_step):
+        for epoch in range(200):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = 0
@@ -221,11 +227,13 @@ class Network(object):
                     lor_params = lor_params.cuda()                            # Put data onto GPU
                 self.optm.zero_grad()                               # Zero the gradient first
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
-                # print("logit type:", logit.dtype)
-                # print("spectra type:", spectra.dtype)
+                # print("logit size:", last_Lor_layer.size())
+                # print("label size:", lor_params.size())
+                # print(logit)
+                # print(lor_params)
                 loss = self.make_loss(last_Lor_layer, lor_params)              # Get the loss tensor
                 loss.backward()                                # Calculate the backward gradients
-                torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
+                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
                 self.optm.step()                                    # Move one step the optimizer
                 train_loss += loss                                  # Aggregate the loss
 
@@ -235,40 +243,23 @@ class Network(object):
             if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
                 # Record the training loss to the tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
-                self.log.add_scalar('Loss/pretrain', train_avg_loss, epoch)
+                self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
 
-                # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=last_Lor_layer[0, :].cpu().data.numpy(),
-                #                              Ytruth=lor_params[0, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample 1 Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=logit[2, :].cpu().data.numpy(),
-                #                              Ytruth=spectra[2, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample 2 Test Prediction'.format(2), figure=f, global_step=epoch)
-                # for j in range(self.flags.num_plot_compare):
+                for j in range(self.flags.num_plot_compare):
+                    f = self.compare_Lor_params(pred=last_Lor_layer[j, :].cpu().data.numpy(),
+                                             truth=lor_params[j, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
 
-                # Set to Evaluation Mode
-                self.model.eval()
-                print("Doing Evaluation on the model now")
-                test_loss = 0
-                for j, (geometry, lor_params) in enumerate(pretest_loader):  # Loop through the eval set
-                    if cuda:
-                        geometry = geometry.cuda()
-                        lor_params = lor_params.cuda()
-                    logit, last_Lor_layer = self.model(geometry)
-                    loss = self.make_loss(last_Lor_layer, lor_params)                   # compute the loss
-                    test_loss += loss                                       # Aggregate the loss
+                f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
+                self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
+                                    global_step=epoch)
 
-                # Record the testing loss to the tensorboard
-                test_avg_loss = test_loss.cpu().data.numpy() / (j+1)
-                self.log.add_scalar('Loss/test', test_avg_loss, epoch)
+                print("This is Epoch %d, pretraining loss %.5f" \
+                      % (epoch, train_avg_loss ))
 
-                print("This is Epoch %d, pretraining loss %.5f, validation loss %.5f" \
-                      % (epoch, train_avg_loss, test_avg_loss ))
-
-                # Model improving, save the model down
-                if test_avg_loss < self.best_validation_loss:
-                    self.best_validation_loss = test_avg_loss
+                # Model improving, save the model
+                if train_avg_loss < self.best_validation_loss:
+                    self.best_validation_loss = train_avg_loss
                     self.save()
                     print("Saving the model...")
 
@@ -279,6 +270,7 @@ class Network(object):
 
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
+
         self.log.close()
 
     def evaluate(self, save_dir='data/'):
@@ -287,6 +279,7 @@ class Network(object):
         if cuda:
             self.model.cuda()
         self.model.eval()                       # Evaluation mode
+
 
         # Get the file names
         Ypred_file = os.path.join(save_dir, 'test_Ypred_{}.csv'.format(self.saved_model))
@@ -307,6 +300,34 @@ class Network(object):
                 np.savetxt(fyp, logits.cpu().data.numpy(), fmt='%.3f')
         return Ypred_file, Ytruth_file
 
+    def compare_Lor_params(self, pred, truth, title=None, figsize=[5, 5]):
+        """
+        Function to plot the comparison for predicted and truth Lorentz parameters
+        :param pred:  Predicted spectra, this should be a list of number of dimension 300, numpy
+        :param truth:  Truth spectra, this should be a list of number of dimension 300, numpy
+        :param title: The title of the plot, usually it comes with the time
+        :param figsize: The figure size of the plot
+        :return: The identifier of the figure
+        """
+        x = np.ones(4)
+        w0_pr = pred[0::3]
+        wp_pr = pred[0::3]
+        g_pr = pred[0::3]
+        w0_tr = truth[0::3]
+        wp_tr = truth[0::3]
+        g_tr = truth[0::3]
+        f = plt.figure(figsize=figsize)
+        marker_size = 14
+        plt.plot(x, w0_pr, markersize=marker_size, color='red', marker='o', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(x, w0_tr, markersize=marker_size, color='red', marker='o', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.plot(2*x, wp_pr, markersize=marker_size, color='blue', marker='s', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(2*x, wp_tr, markersize=marker_size, color='blue', marker='s', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.plot(3*x, g_pr, markersize=marker_size, color='green', marker='v', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(3*x, g_tr, markersize=marker_size, color='green', marker='v', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.xlabel("Lorentz Parameters")
+        plt.ylabel("Parameter value")
+        return f
+
     def compare_spectra(self, Ypred, Ytruth, T=None, title=None, figsize=[15, 5],
                         T_num=10, E1=None, E2=None, N=None, K=None, eps_inf=None):
         """
@@ -320,7 +341,8 @@ class Network(object):
         # Make the frequency into real frequency in THz
         fre_low = 0.5
         fre_high = 5
-        frequency = fre_low + (fre_high - fre_low) / len(Ytruth) * np.arange(300)
+        num_points = len(Ypred)
+        frequency = fre_low + (fre_high - fre_low) / len(Ytruth) * np.arange(num_points)
         f = plt.figure(figsize=figsize)
         plt.plot(frequency, Ypred, label='Pred')
         plt.plot(frequency, Ytruth, label='Truth')
@@ -346,3 +368,20 @@ class Network(object):
         if title is not None:
             plt.title(title)
         return f
+
+    def plotMSELossDistrib(self, pred, truth):
+
+        # mae, mse = compare_truth_pred(pred_file, truth_file)
+        # mae = np.mean(np.abs(pred - truth), axis=1)
+        mse = np.mean(np.square(pred - truth), axis=1)
+
+        f = plt.figure(figsize=(12, 6))
+        plt.hist(mse, bins=100)
+        plt.xlabel('Mean Squared Error')
+        plt.ylabel('Count')
+        plt.suptitle('Model (Avg MSE={:.4e})'.format(np.mean(mse)))
+        # plt.savefig(os.path.join(os.path.abspath(''), 'models',
+        #                          'MSEdistrib_{}.png'.format(flags.model_name)))
+        return f
+        # plt.show()
+        # print('Backprop (Avg MSE={:.4e})'.format(np.mean(mse)))

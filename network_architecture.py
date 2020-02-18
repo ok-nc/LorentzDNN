@@ -96,11 +96,15 @@ class Forward(nn.Module):
             else:
                 out = bn(fc(out))
             #print(out.size())
+            # out = torch.sigmoid(out)
+            # last_Lor_layer = out
+            # return last_Lor_layer, last_Lor_layer
         # If use lorentzian layer, pass this output to the lorentzian layer
         if self.use_lorentz:
-            out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
+            last_Lor_layer = out[:, :-1]
+            #out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
             #out = F.relu(out) + 0.00001
-            last_Lor_layer = out[:,:-1]
+
 
             # Get the out into (batch_size, num_lorentz, 3) and the last epsilon_inf baseline
             epsilon_inf = out[:,-1]  # For debugging purpose now
@@ -124,12 +128,7 @@ class Forward(nn.Module):
             # self.wps = wp.data.cpu().numpy()
             # self.gs = g.data.cpu().numpy()
 
-            # for j in range(4):
-            #     last_Lor_layer[:,3*j] = w0[:,j].squeeze()
-            #     last_Lor_layer[:, 3*j+1] = wp[:,j].squeeze()
-            #     last_Lor_layer[:, 3*j+2] = g[:,j].squeeze()
-
-            #print(last_Lor_layer.size())
+                #print(last_Lor_layer.size())
             #print(g.size())
             self.eps_inf = epsilon_inf.data.cpu().numpy()
 

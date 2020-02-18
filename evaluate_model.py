@@ -8,6 +8,7 @@ import os
 # Own
 import flagreader
 from network_functions import Network
+from network_architecture import Forward
 import datareader
 # Libs
 import numpy as np
@@ -55,11 +56,11 @@ def evaluate_from_model(model_dir):
 
     # Get the data
     train_loader, test_loader = datareader.read_data(x_range=flags.x_range,
-                                                     y_range=flags.y_range,
+                                                     y_range=[i for i in range(8, 20)],
                                                      geoboundary=flags.geoboundary,
                                                      batch_size=flags.batch_size,
                                                      normalize_input=flags.normalize_input,
-                                                     data_dir=flags.data_dir)
+                                                     data_dir=flags.data_dir, pre_train=True)
     print("Making network now")
 
     # Make Network
