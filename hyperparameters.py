@@ -2,7 +2,7 @@
 Parameter file for specifying the running parameters for forward model
 """
 # Model Architectural Parameters
-USE_LORENTZ = False
+USE_LORENTZ = True
 USE_CONV = False                         # Whether use upconv layer when not using lorentz @Omar
 LINEAR = [8, 500, 500, 12]
 FIX_W0 = False
@@ -16,7 +16,7 @@ OPTIM = "Adam"
 REG_SCALE = 1e-3
 BATCH_SIZE = 1024
 EVAL_STEP = 5
-TRAIN_STEP = 200
+TRAIN_STEP = 1000
 LEARN_RATE = 1e-3
 # DECAY_STEP = 25000 # This is for step decay, however we are using dynamic decaying
 LR_DECAY_RATE = 0.5

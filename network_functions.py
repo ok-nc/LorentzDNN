@@ -162,6 +162,9 @@ class Network(object):
                                              Ytruth=spectra[j, :].cpu().data.numpy())
                     self.log.add_figure(tag='Sample ' + str(j) +') Transmission Spectrum'.format(1), figure=f, global_step=epoch)
 
+                f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
+                self.log.add_figure(tag='Single Batch Training MSE Histogram'.format(1), figure=f2,
+                                    global_step=epoch)
 
                 # Set to Evaluation Mode
                 self.model.eval()
@@ -213,7 +216,7 @@ class Network(object):
         tb.configure(argv=[None, '--logdir', self.ckpt_dir])
         url = tb.launch()
 
-        for epoch in range(500):
+        for epoch in range(200):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = 0
@@ -230,7 +233,7 @@ class Network(object):
                 # print(lor_params)
                 loss = self.make_loss(last_Lor_layer, lor_params)              # Get the loss tensor
                 loss.backward()                                # Calculate the backward gradients
-                torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
+                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
                 self.optm.step()                                    # Move one step the optimizer
                 train_loss += loss                                  # Aggregate the loss
 
@@ -243,12 +246,12 @@ class Network(object):
                 self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
 
                 for j in range(self.flags.num_plot_compare):
-                    f = self.compare_spectra(Ypred=last_Lor_layer[j, :].cpu().data.numpy(),
-                                             Ytruth=lor_params[j, :].cpu().data.numpy())
+                    f = self.compare_Lor_params(pred=last_Lor_layer[j, :].cpu().data.numpy(),
+                                             truth=lor_params[j, :].cpu().data.numpy())
                     self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
 
                 f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
-                self.log.add_figure(tag='MSE loss Histogram'.format(1), figure=f2,
+                self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
                                     global_step=epoch)
 
                 print("This is Epoch %d, pretraining loss %.5f" \
@@ -296,6 +299,34 @@ class Network(object):
                 np.savetxt(fyt, spectra.cpu().data.numpy(), fmt='%.3f')
                 np.savetxt(fyp, logits.cpu().data.numpy(), fmt='%.3f')
         return Ypred_file, Ytruth_file
+
+    def compare_Lor_params(self, pred, truth, title=None, figsize=[5, 5]):
+        """
+        Function to plot the comparison for predicted and truth Lorentz parameters
+        :param pred:  Predicted spectra, this should be a list of number of dimension 300, numpy
+        :param truth:  Truth spectra, this should be a list of number of dimension 300, numpy
+        :param title: The title of the plot, usually it comes with the time
+        :param figsize: The figure size of the plot
+        :return: The identifier of the figure
+        """
+        x = np.ones(4)
+        w0_pr = pred[0::3]
+        wp_pr = pred[0::3]
+        g_pr = pred[0::3]
+        w0_tr = truth[0::3]
+        wp_tr = truth[0::3]
+        g_tr = truth[0::3]
+        f = plt.figure(figsize=figsize)
+        marker_size = 14
+        plt.plot(x, w0_pr, markersize=marker_size, color='red', marker='o', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(x, w0_tr, markersize=marker_size, color='red', marker='o', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.plot(2*x, wp_pr, markersize=marker_size, color='blue', marker='s', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(2*x, wp_tr, markersize=marker_size, color='blue', marker='s', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.plot(3*x, g_pr, markersize=marker_size, color='green', marker='v', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(3*x, g_tr, markersize=marker_size, color='green', marker='v', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.xlabel("Lorentz Parameters")
+        plt.ylabel("Parameter value")
+        return f
 
     def compare_spectra(self, Ypred, Ytruth, T=None, title=None, figsize=[15, 5],
                         T_num=10, E1=None, E2=None, N=None, K=None, eps_inf=None):
