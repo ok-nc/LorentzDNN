@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import tkinter
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split

@@ -14,8 +14,11 @@ from tensorboard import program
 from torch.optim import lr_scheduler
 
 # Libs
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pyplot as plt
+
 
 
 class Network(object):
@@ -34,13 +37,15 @@ class Network(object):
             else:
                 self.ckpt_dir = os.path.join(ckpt_dir, flags.model_name)
         self.model = self.create_model()                        # The model itself
-        self.loss = self.make_loss()                            # The loss function
+        self.loss = self.make_custom_loss()                            # The loss function
+        self.pretrain_loss = self.make_MSE_loss()
         self.optm = None                                        # The optimizer: Initialized at train()
         self.lr_scheduler = None                                # The lr scheduler: Initialized at train()
         self.train_loader = train_loader                        # The train data loader
         self.test_loader = test_loader                          # The test data loader
         self.log = SummaryWriter(self.ckpt_dir)     # Create a summary writer for tensorboard
         self.best_validation_loss = float('inf')    # Set the BVL to large number
+        self.best_pretrain_loss = float('inf')  # Set the BVL to large number
 
     def create_model(self):
         """
@@ -52,7 +57,7 @@ class Network(object):
         print(model)
         return model
 
-    def make_loss(self, logit=None, labels=None):
+    def make_MSE_loss(self, logit=None, labels=None):
         """
         Create a tensor that represents the loss. This is consistent both at training time \
         and inference time for a backward model
@@ -63,6 +68,14 @@ class Network(object):
             return None
         MSE_loss = nn.functional.mse_loss(logit, labels)          # The MSE Loss of the network
         return MSE_loss
+
+    def make_custom_loss(self, logit=None, labels=None):
+
+        if logit is None:
+            return None
+        # custom_loss = torch.abs(torch.mean((logit - labels)**2))
+        custom_loss = nn.functional.mse_loss(logit, labels)
+        return custom_loss
 
     def make_optimizer(self):
         """
@@ -122,7 +135,8 @@ class Network(object):
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
-            train_loss = 0
+            train_loss = []
+            train_loss_eval_mode_list = []
             self.model.train()
             for j, (geometry, spectra) in enumerate(self.train_loader):
                 if cuda:
@@ -130,21 +144,33 @@ class Network(object):
                     spectra = spectra.cuda()                            # Put data onto GPU
                 self.optm.zero_grad()                               # Zero the gradient first
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
-                #print("logit type:", logit.dtype)
-                #print("spectra type:", spectra.dtype)
-                loss = self.make_loss(logit, spectra)              # Get the loss tensor
+                # print("logit type:", logit.dtype)
+                # print("spectra type:", spectra.dtype)
+                #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
+                loss = self.make_custom_loss(logit, spectra)
                 loss.backward()                                # Calculate the backward gradients
-                torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
+                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
                 self.optm.step()                                    # Move one step the optimizer
-                train_loss += loss                                  # Aggregate the loss
+                train_loss.append(np.copy(loss.cpu().data.numpy()))                                     # Aggregate the loss
+
+                #############################################
+                # Extra test for err_test < err_train issue #
+                #############################################
+                self.model.eval()
+                logit, last_Lor_layer = self.model(geometry)  # Get the output
+                loss = self.make_custom_loss(logit, spectra)  # Get the loss tensor
+                train_loss_eval_mode_list.append(np.copy(loss.cpu().data.numpy()))
+                self.model.train()
 
             # Calculate the avg loss of training
-            train_avg_loss = train_loss.cpu().data.numpy() / (j+1)
+            train_avg_loss = np.mean(train_loss)
+            train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
 
             if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
                 # Record the training loss to the tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Loss/train', train_avg_loss, epoch)
+                self.log.add_scalar('Loss/train_eval_mode', train_avg_eval_mode_loss, epoch)
                 # if self.flags.use_lorentz:
                 #     for j in range(self.flags.num_plot_compare):
                         # f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
@@ -162,30 +188,31 @@ class Network(object):
                                              Ytruth=spectra[j, :].cpu().data.numpy())
                     self.log.add_figure(tag='Sample ' + str(j) +') Transmission Spectrum'.format(1), figure=f, global_step=epoch)
 
-                f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
-                self.log.add_figure(tag='Single Batch Training MSE Histogram'.format(1), figure=f2,
-                                    global_step=epoch)
+                # f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
+                # self.log.add_figure(tag='Single Batch Training MSE Histogram'.format(1), figure=f2,
+                #                     global_step=epoch)
 
                 # Set to Evaluation Mode
                 self.model.eval()
                 print("Doing Evaluation on the model now")
-                test_loss = 0
+                test_loss = []
                 for j, (geometry, spectra) in enumerate(self.test_loader):  # Loop through the eval set
                     if cuda:
                         geometry = geometry.cuda()
                         spectra = spectra.cuda()
                     logit, last_Lor_layer = self.model(geometry)
-                    loss = self.make_loss(logit, spectra)                   # compute the loss
-                    test_loss += loss                                       # Aggregate the loss
+                    #loss = self.make_MSE_loss(logit, spectra)                   # compute the loss
+                    loss = self.make_custom_loss(logit, spectra)
+                    test_loss.append(np.copy(loss.cpu().data.numpy()))                                       # Aggregate the loss
 
                 # Record the testing loss to the tensorboard
-                test_avg_loss = test_loss.cpu().data.numpy() / (j+1)
+                test_avg_loss = np.mean(test_loss)
                 self.log.add_scalar('Loss/test', test_avg_loss, epoch)
 
                 print("This is Epoch %d, training loss %.5f, validation loss %.5f" \
                       % (epoch, train_avg_loss, test_avg_loss ))
 
-                # Model improving, save the model down
+                # Model improving, save the model
                 if test_avg_loss < self.best_validation_loss:
                     self.best_validation_loss = test_avg_loss
                     self.save()
@@ -219,7 +246,8 @@ class Network(object):
         for epoch in range(200):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
-            train_loss = 0
+            train_loss = []
+            train_loss_eval_mode_list = []
             self.model.train()
             for j, (geometry, lor_params) in enumerate(pretrain_loader):
                 if cuda:
@@ -231,19 +259,31 @@ class Network(object):
                 # print("label size:", lor_params.size())
                 # print(logit)
                 # print(lor_params)
-                loss = self.make_loss(last_Lor_layer, lor_params)              # Get the loss tensor
-                loss.backward()                                # Calculate the backward gradients
+                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params)              # Get the loss tensor
+                pretrain_loss.backward()                                # Calculate the backward gradients
                 # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
                 self.optm.step()                                    # Move one step the optimizer
-                train_loss += loss                                  # Aggregate the loss
+                train_loss.append(np.copy(pretrain_loss.cpu().data.numpy()))                                   # Aggregate the loss
+
+                #############################################
+                # Extra test for err_test < err_train issue #
+                #############################################
+                self.model.eval()
+                logit, last_Lor_layer = self.model(geometry)  # Get the output
+                loss = self.make_MSE_loss(last_Lor_layer, lor_params)  # Get the loss tensor
+                train_loss_eval_mode_list.append(np.copy(pretrain_loss.cpu().data.numpy()))
+                self.model.train()
 
             # Calculate the avg loss of training
-            train_avg_loss = train_loss.cpu().data.numpy() / (j+1)
+            train_avg_loss = np.mean(train_loss)
+            train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
 
-            if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
+            if epoch % 5 == 0:
+            #if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
                 # Record the training loss to the tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
+                self.log.add_scalar('Pretrain Loss/ Evaluation Mode', train_avg_eval_mode_loss, epoch)
 
                 for j in range(self.flags.num_plot_compare):
                     f = self.compare_Lor_params(pred=last_Lor_layer[j, :].cpu().data.numpy(),
@@ -258,14 +298,14 @@ class Network(object):
                       % (epoch, train_avg_loss ))
 
                 # Model improving, save the model
-                if train_avg_loss < self.best_validation_loss:
-                    self.best_validation_loss = train_avg_loss
+                if train_avg_loss < self.best_pretrain_loss:
+                    self.best_pretrain_loss = train_avg_loss
                     self.save()
                     print("Saving the model...")
 
-                    if self.best_validation_loss < self.flags.stop_threshold:
+                    if self.best_pretrain_loss < self.flags.stop_threshold:
                         print("Pretraining finished EARLIER at epoch %d, reaching loss of %.5f" %\
-                              (epoch, self.best_validation_loss))
+                              (epoch, self.best_pretrain_loss))
                         return None
 
             # Learning rate decay upon plateau
@@ -311,11 +351,11 @@ class Network(object):
         """
         x = np.ones(4)
         w0_pr = pred[0::3]
-        wp_pr = pred[0::3]
-        g_pr = pred[0::3]
+        wp_pr = pred[1::3]
+        g_pr = pred[2::3]
         w0_tr = truth[0::3]
-        wp_tr = truth[0::3]
-        g_tr = truth[0::3]
+        wp_tr = truth[1::3]
+        g_tr = truth[2::3]
         f = plt.figure(figsize=figsize)
         marker_size = 14
         plt.plot(x, w0_pr, markersize=marker_size, color='red', marker='o', fillstyle='none', linestyle='None', label='w_0 pr')
@@ -385,3 +425,4 @@ class Network(object):
         return f
         # plt.show()
         # print('Backprop (Avg MSE={:.4e})'.format(np.mean(mse)))
+
