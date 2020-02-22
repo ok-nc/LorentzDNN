@@ -147,6 +147,14 @@ class Network(object):
                 # print("logit type:", logit.dtype)
                 # print("spectra type:", spectra.dtype)
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
+
+                for j in range(self.flags.num_plot_compare):
+                    f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
+                                             Ytruth=spectra[j, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Sample ' + str(j) +') Initial Transmission Spectrum'.format(1), figure=f, global_step=epoch)
+
+
+
                 loss = self.make_custom_loss(logit, spectra)
                 loss.backward()                                # Calculate the backward gradients
                 # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
