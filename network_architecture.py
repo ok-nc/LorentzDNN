@@ -102,6 +102,7 @@ class Forward(nn.Module):
         # If use lorentzian layer, pass this output to the lorentzian layer
         if self.use_lorentz:
             last_Lor_layer = out[:, :-1]
+            # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
             #out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
             #out = F.relu(out) + 0.00001
 
@@ -198,8 +199,8 @@ class Forward(nn.Module):
             #print(d.size())
             ab = torch.exp(-0.0005 * 4 * math.pi * mul(d, k))
             T_coeff = div(4*n, add(n_12, k2))
-            T = mul(T_coeff, ab).float()
-
+            # T = mul(T_coeff, ab).float()
+            T = e2.float()
 
             """
             Debugging and plotting (This is very slow, comment to boost)
