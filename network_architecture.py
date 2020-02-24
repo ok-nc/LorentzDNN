@@ -227,29 +227,29 @@ class Forward(nn.Module):
         return out, out
 
 
-def Lorentz_part(Lorentz_param):
+def Lorentz_layer(Lorentz_params):
     # last_Lor_layer = out[:, :-1]
     # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
     # out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
     # out = F.relu(out) + 0.00001
-    last_Lor_layer = out[:, :-1]
+    last_Lor_layer = Lorentz_params[:, :-1]
 
     # Get the out into (batch_size, num_lorentz, 3) and the last epsilon_inf baseline
-    epsilon_inf = out[:, -1]  # For debugging purpose now
+    epsilon_inf = Lorentz_params[:, -1]  # For debugging purpose now
 
     # Set epsilon_inf to be a constant universal value here
     epsilon_inf = torch.tensor([10], requires_grad=False).expand_as(epsilon_inf)
     if torch.cuda.is_available():
         epsilon_inf = epsilon_inf.cuda()
-    out = last_Lor_layer.view([-1, int(out.size(1) / 3), 3])
+    out = last_Lor_layer.view([-1, int(Lorentz_params.size(1) / 3), 3])
 
     # Get the list of params for lorentz, also add one extra dimension at 3rd one to
     if self.fix_w0:
         w0 = self.w0.unsqueeze(0).unsqueeze(2)
     else:
-        w0 = out[:, :, 0].unsqueeze(2) * 5
-    wp = out[:, :, 1].unsqueeze(2) * 5
-    g = out[:, :, 2].unsqueeze(2) * 0.5
+        w0 = Lorentz_params[:, :, 0].unsqueeze(2) * 5
+    wp = Lorentz_params[:, :, 1].unsqueeze(2) * 5
+    g = Lorentz_params[:, :, 2].unsqueeze(2) * 0.5
     # nn.init.xavier_uniform_(g)
     # This is for debugging purpose (Very slow), recording the output tensors
     # self.w0s = w0.data.cpu().numpy()
@@ -261,7 +261,7 @@ def Lorentz_part(Lorentz_param):
     self.eps_inf = epsilon_inf.data.cpu().numpy()
 
     # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
-    w0 = w0.expand(out.size(0), self.num_lorentz, self.num_spec_point)
+    w0 = w0.expand(Lorentz_params.size(0), self.num_lorentz, self.num_spec_point)
     wp = wp.expand_as(w0)
     g = g.expand_as(w0)
     w_expand = self.w.expand_as(g)
