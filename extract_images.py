@@ -41,7 +41,7 @@ def main():
             if file_name.endswith('.jpg'):
                 file_path = os.path.join(jpg_dir, file_name)
                 images.append(imageio.imread(file_path))
-        imageio.mimsave(os.path.join(jpg_dir, 'test.gif'), images, fps=5)
+        imageio.mimsave(os.path.join(jpg_dir, tag_name+'.gif'), images, fps=2)
 
 if __name__ == '__main__':
     main()

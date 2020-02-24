@@ -148,10 +148,10 @@ class Network(object):
                 # print("spectra type:", spectra.dtype)
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
 
-                for j in range(self.flags.num_plot_compare):
-                    f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
-                                             Ytruth=spectra[j, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample ' + str(j) +') Initial Transmission Spectrum'.format(1), figure=f, global_step=epoch)
+                # for j in range(self.flags.num_plot_compare):
+                #     f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
+                #                              Ytruth=spectra[j, :].cpu().data.numpy())
+                #     self.log.add_figure(tag='Sample ' + str(j) +') Initial e2 Spectrum'.format(1), figure=f, global_step=epoch)
 
 
 
@@ -194,7 +194,7 @@ class Network(object):
                 for j in range(self.flags.num_plot_compare):
                     f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
                                              Ytruth=spectra[j, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample ' + str(j) +') Transmission Spectrum'.format(1), figure=f, global_step=epoch)
+                    self.log.add_figure(tag='Sample ' + str(j) +') e2 Spectrum'.format(1), figure=f, global_step=epoch)
 
                 # f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
                 # self.log.add_figure(tag='Single Batch Training MSE Histogram'.format(1), figure=f2,
@@ -278,7 +278,7 @@ class Network(object):
                 #############################################
                 self.model.eval()
                 logit, last_Lor_layer = self.model(geometry)  # Get the output
-                loss = self.make_MSE_loss(last_Lor_layer, lor_params)  # Get the loss tensor
+                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params)  # Get the loss tensor
                 train_loss_eval_mode_list.append(np.copy(pretrain_loss.cpu().data.numpy()))
                 self.model.train()
 
@@ -412,7 +412,7 @@ class Network(object):
         plt.legend()
         #plt.xlim([fre_low, fre_high])
         plt.xlabel("Frequency (THz)")
-        plt.ylabel("Transmittance")
+        plt.ylabel("e2")
         if title is not None:
             plt.title(title)
         return f
