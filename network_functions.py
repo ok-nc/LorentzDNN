@@ -125,6 +125,9 @@ class Network(object):
         cuda = True if torch.cuda.is_available() else False
         if cuda:
             self.model.cuda()
+        weights = self.model.linears[-1].weight.cpu().data.numpy()
+        np.savetxt('Train_Lorentz_Weights_Pre_Epoch0.csv', weights, fmt='%.3f', delimiter=',')
+
 
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
@@ -145,6 +148,7 @@ class Network(object):
                     spectra = spectra.cuda()                            # Put data onto GPU
                 self.optm.zero_grad()                               # Zero the gradient first
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
+
                 # print("logit type:", logit.dtype)
                 # print("spectra type:", spectra.dtype)
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
@@ -154,7 +158,13 @@ class Network(object):
                 #                              Ytruth=spectra[j, :].cpu().data.numpy())
                 #     self.log.add_figure(tag='Sample ' + str(j) +') Initial e2 Spectrum'.format(1), figure=f, global_step=epoch)
 
+                if epoch == 0:
+                    weights = self.model.linears[-1].weight.cpu().data.numpy()
+                    np.savetxt('Train_Lorentz_Weights_Pre_Epoch1.csv', weights, fmt='%.3f', delimiter=',')
 
+                elif epoch ==1:
+                    weights = self.model.linears[-1].weight.cpu().data.numpy()
+                    np.savetxt('Train_Lorentz_Weights_Pre_Epoch2.csv', weights, fmt='%.3f', delimiter=',')
 
                 loss = self.make_custom_loss(logit, spectra)
                 loss.backward()                                # Calculate the backward gradients
@@ -234,6 +244,7 @@ class Network(object):
 
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
+
         self.log.close()
 
     def pretrain(self, pretrain_loader, pretest_loader):
@@ -328,6 +339,11 @@ class Network(object):
 
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
+
+            if epoch == 199:
+                weights = self.model.linears[-1].weight.cpu().data.numpy()
+                # print(weights.shape)
+                np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
 
         self.log.close()
 
