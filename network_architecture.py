@@ -129,7 +129,7 @@ class Forward(nn.Module):
             # self.wps = wp.data.cpu().numpy()
             # self.gs = g.data.cpu().numpy()
 
-                #print(last_Lor_layer.size())
+            #print(last_Lor_layer.size())
             #print(g.size())
             self.eps_inf = epsilon_inf.data.cpu().numpy()
 
@@ -232,7 +232,24 @@ def Lorentz_layer(Lorentz_params):
     # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
     # out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
     # out = F.relu(out) + 0.00001
-    last_Lor_layer = Lorentz_params[:, :-1]
+
+    # This block of code redefines 'self' variables from model
+    normalize_input = True
+    geoboundary = [20, 200, 20, 100]
+    fre_low = 0.5
+    fre_high = 5
+    num_lorentz = 4
+    num_spec_point = 300
+    w_numpy = np.arange(fre_low, fre_high, (fre_high - fre_low) / num_spec_point)
+    w0 = torch.tensor(np.arange(0, 5, 5 / num_lorentz))
+
+    # Create the tensor from numpy array
+    cuda = True if torch.cuda.is_available() else False
+    if cuda:
+        w = torch.tensor(w_numpy).cuda()
+        w0 = w0.cuda()
+    else:
+        w = torch.tensor(w_numpy)
 
     # Get the out into (batch_size, num_lorentz, 3) and the last epsilon_inf baseline
     epsilon_inf = Lorentz_params[:, -1]  # For debugging purpose now
@@ -241,13 +258,10 @@ def Lorentz_layer(Lorentz_params):
     epsilon_inf = torch.tensor([10], requires_grad=False).expand_as(epsilon_inf)
     if torch.cuda.is_available():
         epsilon_inf = epsilon_inf.cuda()
-    out = last_Lor_layer.view([-1, int(Lorentz_params.size(1) / 3), 3])
+    Lorentz_params = Lorentz_params.view([-1, int(Lorentz_params.size(1) / 3), 3])
 
-    # Get the list of params for lorentz, also add one extra dimension at 3rd one to
-    if self.fix_w0:
-        w0 = self.w0.unsqueeze(0).unsqueeze(2)
-    else:
-        w0 = Lorentz_params[:, :, 0].unsqueeze(2) * 5
+    # Get the list of params for lorentz, also add one extra dimension at 3rd one to0
+    w0 = Lorentz_params[:, :, 0].unsqueeze(2) * 5
     wp = Lorentz_params[:, :, 1].unsqueeze(2) * 5
     g = Lorentz_params[:, :, 2].unsqueeze(2) * 0.5
     # nn.init.xavier_uniform_(g)
@@ -258,13 +272,13 @@ def Lorentz_layer(Lorentz_params):
 
     # print(last_Lor_layer.size())
     # print(g.size())
-    self.eps_inf = epsilon_inf.data.cpu().numpy()
+    #self.eps_inf = epsilon_inf.data.cpu().numpy()
 
     # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
-    w0 = w0.expand(Lorentz_params.size(0), self.num_lorentz, self.num_spec_point)
+    w0 = w0.expand(Lorentz_params.size(0), num_lorentz, num_spec_point)
     wp = wp.expand_as(w0)
     g = g.expand_as(w0)
-    w_expand = self.w.expand_as(g)
+    w_expand = w.expand_as(g)
     """
     Testing code
     #print("c1 size", self.c1.size())
@@ -322,18 +336,19 @@ def Lorentz_layer(Lorentz_params):
     # T without absorption
     # T = div(4*n, add(n_12, k2)).float()
 
-    d, _ = torch.max(G[:, 4:], dim=1)
-    # print(d)
-    if self.flags.normalize_input:
-        d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
-                    self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
-    # print(d)
-    # print(d.size())
-    d = d.unsqueeze(1).expand_as(k)
-    # print(d.size())
-    ab = torch.exp(-0.0005 * 4 * math.pi * mul(d, k))
-    T_coeff = div(4 * n, add(n_12, k2))
-    # T = mul(T_coeff, ab).float()
+    # d, _ = torch.max(G[:, 4:], dim=1)
+    # # print(d)
+    #
+    # if normalize_input:
+    #     d = d * (geoboundary[-1] - geoboundary[-2]) * 0.5 + (
+    #                 geoboundary[-1] + geoboundary[-2]) * 0.5
+    # # print(d)
+    # # print(d.size())
+    # d = d.unsqueeze(1).expand_as(k)
+    # # print(d.size())
+    # ab = torch.exp(-0.0005 * 4 * math.pi * mul(d, k))
+    # T_coeff = div(4 * n, add(n_12, k2))
+    # # T = mul(T_coeff, ab).float()
     T = e2.float()
 
     """
@@ -346,4 +361,4 @@ def Lorentz_layer(Lorentz_params):
     # print("T size",T.size())
     # Last step, sum up except for the 0th dimension of batch_size (deprecated since we sum at e above)
     # T = torch.sum(T, 1).float()
-    return T, last_Lor_layer
+    return T

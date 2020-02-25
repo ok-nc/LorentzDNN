@@ -38,7 +38,7 @@ def training_from_flag(flags):
                                                      test_ratio=flags.test_ratio,pre_train=False)
 
     pretrain_loader, pretest_loader = datareader.read_data(x_range=flags.x_range,
-                                                     y_range=[i for i in range(8, 20)],
+                                                     y_range=[i for i in range(8, 320)],
                                                      geoboundary=flags.geoboundary,
                                                      batch_size=flags.batch_size,
                                                      normalize_input=flags.normalize_input,
@@ -58,7 +58,7 @@ def training_from_flag(flags):
     # Training process
     print("Start training now...")
     ntwk.pretrain(pretrain_loader, pretest_loader)
-    ntwk.train()
+    #ntwk.train()
 
     # Do the house keeping, write the parameters and put into folder, also use pickle to save the flags object
     write_flags_and_BVE(flags, ntwk.best_validation_loss, ntwk.ckpt_dir)

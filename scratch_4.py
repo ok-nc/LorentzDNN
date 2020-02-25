@@ -1,14 +1,11 @@
-import datareader
-import flagreader
 import os
+import imageio
 
-flags = flagreader.read_flag()
-
-train_loader, test_loader = datareader.read_data(x_range=flags.x_range,
-                                                      y_range=flags.y_range,                                                      geoboundary=flags.geoboundary,
-                                                      batch_size=flags.batch_size,
-                                                      normalize_input=flags.normalize_input,
-                                                      data_dir=flags.data_dir,
-                                                      test_ratio=flags.test_ratio)
-
-
+#jpg_dir = '../saves/png/'
+jpg_dir = '/home/omar/PycharmProjects/mlmOK_Pytorch/models/20200213_215704/out/Sample_1_Test_Prediction'
+images = []
+for file_name in os.listdir(jpg_dir):
+    if file_name.endswith('.jpg'):
+        file_path = os.path.join(jpg_dir, file_name)
+        images.append(imageio.imread(file_path))
+imageio.mimsave(os.path.join(jpg_dir, 'test.gif'), images, fps=5)

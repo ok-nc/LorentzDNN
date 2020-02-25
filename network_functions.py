@@ -12,6 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
 #from torchsummary import summary
 from torch.optim import lr_scheduler
+from network_architecture import Lorentz_layer
 
 # Libs
 import matplotlib
@@ -263,11 +264,12 @@ class Network(object):
                     lor_params = lor_params.cuda()                            # Put data onto GPU
                 self.optm.zero_grad()                               # Zero the gradient first
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
-                # print("logit size:", last_Lor_layer.size())
                 # print("label size:", lor_params.size())
+                # print("logit size:", last_Lor_layer.size())
                 # print(logit)
                 # print(lor_params)
-                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params)              # Get the loss tensor
+
+                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])              # Get the loss tensor
                 pretrain_loss.backward()                                # Calculate the backward gradients
                 # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
                 self.optm.step()                                    # Move one step the optimizer
@@ -278,7 +280,7 @@ class Network(object):
                 #############################################
                 self.model.eval()
                 logit, last_Lor_layer = self.model(geometry)  # Get the output
-                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params)  # Get the loss tensor
+                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])  # Get the loss tensor
                 train_loss_eval_mode_list.append(np.copy(pretrain_loss.cpu().data.numpy()))
                 self.model.train()
 
@@ -295,15 +297,23 @@ class Network(object):
 
                 for j in range(self.flags.num_plot_compare):
                     f = self.compare_Lor_params(pred=last_Lor_layer[j, :].cpu().data.numpy(),
-                                             truth=lor_params[j, :].cpu().data.numpy())
+                                             truth=lor_params[j, :12].cpu().data.numpy())
                     self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
 
-                f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
-                self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
-                                    global_step=epoch)
+                pretrain_sim_prediction = lor_params[:, 12:]
+                pretrain_model_prediction = Lorentz_layer(last_Lor_layer)
 
-                print("This is Epoch %d, pretraining loss %.5f" \
-                      % (epoch, train_avg_loss ))
+                for j in range(self.flags.num_plot_compare):
+
+                    f = self.compare_spectra(Ypred=pretrain_model_prediction[j, :].cpu().data.numpy(),
+                                             Ytruth=pretrain_sim_prediction[j, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Model ' + str(j) +') e2 Prediction'.format(1), figure=f, global_step=epoch)
+
+                # f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
+                # self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
+                #                     global_step=epoch)
+
+                print("This is Epoch %d, pretraining loss %.5f" % (epoch, train_avg_loss ))
 
                 # Model improving, save the model
                 if train_avg_loss < self.best_pretrain_loss:
