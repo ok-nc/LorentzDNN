@@ -76,6 +76,10 @@ class Network(object):
             return None
         # custom_loss = torch.abs(torch.mean((logit - labels)**2))
         custom_loss = nn.functional.mse_loss(logit, labels)
+        # derivative_loss = logit
+        # for i in range(logit.size()[1]-1):
+        #     derivative_loss[:,i+1] = nn.functional.mse_loss(logit[:,i+1] - logit[:,i], labels[:,i+1] - labels[:,i])
+        # custom_loss += derivative_loss
         return custom_loss
 
     def make_optimizer(self):
@@ -125,8 +129,7 @@ class Network(object):
         cuda = True if torch.cuda.is_available() else False
         if cuda:
             self.model.cuda()
-        weights = self.model.linears[-1].weight.cpu().data.numpy()
-        np.savetxt('Train_Lorentz_Weights_Pre_Epoch0.csv', weights, fmt='%.3f', delimiter=',')
+        np.savetxt('Training_Weights_Lorentz_Layer_0.csv', self.model.linears[-1].weight.cpu().data.numpy(), fmt='%.3f', delimiter=',')
 
 
         # Construct optimizer after the model moved to GPU
@@ -135,41 +138,48 @@ class Network(object):
         tb = program.TensorBoard()
         tb.configure(argv=[None, '--logdir', self.ckpt_dir])
         url = tb.launch()
+        # self.optm.zero_grad()
+        # self.model = torch.load(os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
+        # np.savetxt('Training_Weights_Lorentz_Layer_1.csv', self.model.linears[-1].weight.cpu().data.numpy(), fmt='%.3f', delimiter=',')
 
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = []
             train_loss_eval_mode_list = []
+            # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_'+str(epoch)+'_0.csv', self.model.linears[-1].weight.cpu().data.numpy(),
+            #            fmt='%.3f', delimiter=',')
             self.model.train()
+            # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_'+str(epoch)+'_1.csv', self.model.linears[-1].weight.cpu().data.numpy(),
+            #            fmt='%.3f', delimiter=',')
             for j, (geometry, spectra) in enumerate(self.train_loader):
+                # # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_' + str(epoch) + '_2.csv',
+                # #            self.model.linears[-1].weight.cpu().data.numpy(),
+                #            fmt='%.3f', delimiter=',')
+
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
                     spectra = spectra.cuda()                            # Put data onto GPU
-                self.optm.zero_grad()                               # Zero the gradient first
+                # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_' + str(epoch) + '_3.csv',
+                #            self.model.linears[-1].weight.cpu().data.numpy(),
+                #            fmt='%.3f', delimiter=',')
+                self.optm.zero_grad()
+                # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_' + str(epoch) + '_4.csv',
+                #            self.model.linears[-1].weight.cpu().data.numpy(),
+                #            fmt='%.3f', delimiter=',')
+                # Zero the gradient first
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
 
                 # print("logit type:", logit.dtype)
                 # print("spectra type:", spectra.dtype)
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
 
-                # for j in range(self.flags.num_plot_compare):
-                #     f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
-                #                              Ytruth=spectra[j, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Sample ' + str(j) +') Initial e2 Spectrum'.format(1), figure=f, global_step=epoch)
-
-                if epoch == 0:
-                    weights = self.model.linears[-1].weight.cpu().data.numpy()
-                    np.savetxt('Train_Lorentz_Weights_Pre_Epoch1.csv', weights, fmt='%.3f', delimiter=',')
-
-                elif epoch ==1:
-                    weights = self.model.linears[-1].weight.cpu().data.numpy()
-                    np.savetxt('Train_Lorentz_Weights_Pre_Epoch2.csv', weights, fmt='%.3f', delimiter=',')
-
                 loss = self.make_custom_loss(logit, spectra)
                 loss.backward()                                # Calculate the backward gradients
+
                 # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
                 self.optm.step()                                    # Move one step the optimizer
+
                 train_loss.append(np.copy(loss.cpu().data.numpy()))                                     # Aggregate the loss
 
                 #############################################
@@ -341,9 +351,10 @@ class Network(object):
             self.lr_scheduler.step(train_avg_loss)
 
             if epoch == 199:
-                weights = self.model.linears[-1].weight.cpu().data.numpy()
-                # print(weights.shape)
-                np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
+                # weights = self.model.linears[-1].weight.cpu().data.numpy()
+                # # print(weights.shape)
+                # np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
+                torch.save(self.model, os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
 
         self.log.close()
 
