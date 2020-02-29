@@ -121,16 +121,28 @@ class Network(object):
         """
         self.model = torch.load(os.path.join(self.ckpt_dir, 'best_model.pt'))
 
+    def record_weight(self, name, layer=-1, batch=999, epoch=999):
+        """
+        Record the weight to compare and see which layer it started to change
+        :input: name: The name to save
+        :input: layer: The layer to check
+        """
+        if batch == 0 and epoch == 0:
+            np.savetxt('Training_Weights_Lorentz_Layer' + name,
+                self.model.linears[layer].weight.cpu().data.numpy(),
+                fmt='%.3f', delimiter=',')
+        
+
     def train(self):
         """
         The major training function. This would start the training using information given in the flags
         :return: None
         """
+        print("Starting training process")
         cuda = True if torch.cuda.is_available() else False
         if cuda:
             self.model.cuda()
-        np.savetxt('Training_Weights_Lorentz_Layer_0.csv', self.model.linears[-1].weight.cpu().data.numpy(), fmt='%.3f', delimiter=',')
-
+        self.record_weight(name='start_of_train', batch=0, epoch=0)
 
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
@@ -140,33 +152,19 @@ class Network(object):
         url = tb.launch()
         # self.optm.zero_grad()
         # self.model = torch.load(os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
-        # np.savetxt('Training_Weights_Lorentz_Layer_1.csv', self.model.linears[-1].weight.cpu().data.numpy(), fmt='%.3f', delimiter=',')
 
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = []
             train_loss_eval_mode_list = []
-            # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_'+str(epoch)+'_0.csv', self.model.linears[-1].weight.cpu().data.numpy(),
-            #            fmt='%.3f', delimiter=',')
             self.model.train()
-            # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_'+str(epoch)+'_1.csv', self.model.linears[-1].weight.cpu().data.numpy(),
-            #            fmt='%.3f', delimiter=',')
             for j, (geometry, spectra) in enumerate(self.train_loader):
-                # # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_' + str(epoch) + '_2.csv',
-                # #            self.model.linears[-1].weight.cpu().data.numpy(),
-                #            fmt='%.3f', delimiter=',')
-
+                self.record_weight(name='before_cuda', batch=j, epoch=epoch)
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
                     spectra = spectra.cuda()                            # Put data onto GPU
-                # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_' + str(epoch) + '_3.csv',
-                #            self.model.linears[-1].weight.cpu().data.numpy(),
-                #            fmt='%.3f', delimiter=',')
                 self.optm.zero_grad()
-                # np.savetxt('Training_Weights_Lorentz_Layer_Epoch_' + str(epoch) + '_4.csv',
-                #            self.model.linears[-1].weight.cpu().data.numpy(),
-                #            fmt='%.3f', delimiter=',')
                 # Zero the gradient first
                 logit, last_Lor_layer = self.model(geometry)                        # Get the output
 
@@ -176,9 +174,11 @@ class Network(object):
 
                 loss = self.make_custom_loss(logit, spectra)
                 loss.backward()                                # Calculate the backward gradients
+                self.record_weight(name='after_backward', batch=j, epoch=epoch)
 
                 # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
                 self.optm.step()                                    # Move one step the optimizer
+                self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
 
                 train_loss.append(np.copy(loss.cpu().data.numpy()))                                     # Aggregate the loss
 
@@ -273,6 +273,7 @@ class Network(object):
         tb.configure(argv=[None, '--logdir', self.ckpt_dir])
         url = tb.launch()
 
+        print("Starting pre-training process")
         for epoch in range(200):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
@@ -309,7 +310,7 @@ class Network(object):
             train_avg_loss = np.mean(train_loss)
             train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
 
-            if epoch % 5 == 0:
+            if epoch % 20 == 0:
             #if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
                 # Record the training loss to the tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
