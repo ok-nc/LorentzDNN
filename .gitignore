@@ -1,6 +1,7 @@
 dataIn
 models
 figs
+evaluate_model.py
 */*.csv
 */*.png
 */*.jpg
