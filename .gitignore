@@ -6,4 +6,5 @@ evaluate_model.py
 */*.png
 */*.jpg
 */*.sh
-
+*/*.xml
+*/*.iml
