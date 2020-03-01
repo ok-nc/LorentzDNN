@@ -127,11 +127,34 @@ class Network(object):
         :input: name: The name to save
         :input: layer: The layer to check
         """
+        weights = self.model.linears[layer].weight.cpu().data.numpy()
+        # if batch == 0 and epoch == 0:
+        #     np.savetxt('Training_Weights_Lorentz_Layer' + name,
+        #         weights, fmt='%.3f', delimiter=',')
+        f = plt.figure(figsize=(10,10))
+        c = plt.imshow(weights.reshape((65,100)), cmap=plt.get_cmap('viridis'))
+        plt.colorbar(c, fraction=0.03)
+        f.axes.get_xaxis().set_visible(False)
+        f.axes.get_yaxis().set_visible(False)
+        self.log.add_figure(tag='Layer ' + str(layer) + ') Weights'.format(1), figure=f, global_step=epoch)
+
+    def record_grad(self, name, layer=-1, batch=999, epoch=999):
+        """
+        Record the weight to compare and see which layer it started to change
+        :input: name: The name to save
+        :input: layer: The layer to check
+        """
+        gradients = self.model.linears[layer].grad.data.cpu().data.numpy()
         if batch == 0 and epoch == 0:
-            np.savetxt('Training_Weights_Lorentz_Layer' + name,
-                self.model.linears[layer].weight.cpu().data.numpy(),
+            np.savetxt('Training_Gradients_Lorentz_Layer' + name,
+                self.model.linears[layer].grad.data.cpu().data.numpy(),
                 fmt='%.3f', delimiter=',')
-        
+        f = plt.figure(figsize=(10, 10))
+        c = plt.imshow(gradients.reshape((65, 100)), cmap=plt.get_cmap('viridis'))
+        plt.colorbar(c, fraction=0.03)
+        f.axes.get_xaxis().set_visible(False)
+        f.axes.get_yaxis().set_visible(False)
+        self.log.add_figure(tag='Layer ' + str(layer) + ') Gradients'.format(1), figure=f, global_step=epoch)
 
     def train(self):
         """
@@ -281,6 +304,7 @@ class Network(object):
             train_loss_eval_mode_list = []
             self.model.train()
             for j, (geometry, lor_params) in enumerate(pretrain_loader):
+                self.record_weight(name='Pretraining', batch=0, epoch=epoch)
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
                     lor_params = lor_params.cuda()                            # Put data onto GPU
