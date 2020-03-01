@@ -134,8 +134,8 @@ class Network(object):
         f = plt.figure(figsize=(10,10))
         c = plt.imshow(weights.reshape((65,100)), cmap=plt.get_cmap('viridis'))
         plt.colorbar(c, fraction=0.03)
-        f.axes.get_xaxis().set_visible(False)
-        f.axes.get_yaxis().set_visible(False)
+        # f.axes.get_xaxis().set_visible(False)
+        # f.axes.get_yaxis().set_visible(False)
         self.log.add_figure(tag='Layer ' + str(layer) + ') Weights'.format(1), figure=f, global_step=epoch)
 
     def record_grad(self, name, layer=-1, batch=999, epoch=999):
@@ -152,8 +152,6 @@ class Network(object):
         f = plt.figure(figsize=(10, 10))
         c = plt.imshow(gradients.reshape((65, 100)), cmap=plt.get_cmap('viridis'))
         plt.colorbar(c, fraction=0.03)
-        f.axes.get_xaxis().set_visible(False)
-        f.axes.get_yaxis().set_visible(False)
         self.log.add_figure(tag='Layer ' + str(layer) + ') Gradients'.format(1), figure=f, global_step=epoch)
 
     def train(self):
