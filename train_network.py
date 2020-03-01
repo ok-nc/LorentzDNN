@@ -2,7 +2,6 @@
 This file serves as a training interface for training the network
 """
 # Built in
-import glob
 import os
 
 # Other custom network modules
@@ -10,10 +9,9 @@ import flagreader
 import datareader
 from network_functions import Network
 from network_architecture import Forward
-import evaluate_model as eval
 # from network_lorentz import Network
 # from network_lorentz import Forward
-from logging_functions import put_param_into_folder, write_flags_and_BVE
+from logging_functions import write_flags_and_BVE
 
 
 def training_from_flag(flags):

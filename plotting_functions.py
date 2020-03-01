@@ -4,10 +4,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
-import evaluate_model
+from models import evaluate_model
 import seaborn as sns; sns.set()
 import logging_functions
-from sklearn.neighbors import NearestNeighbors
 from pandas.plotting import table
 from scipy.spatial import distance_matrix
 from scipy.sparse import csr_matrix
@@ -42,10 +41,6 @@ def ImportColorBarLib():
     """
     Import some libraries that used in a colorbar plot
     """
-    import matplotlib.colors as colors
-    import matplotlib.cm as cmx
-    from matplotlib.collections import LineCollection
-    from matplotlib.colors import ListedColormap, BoundaryNorm
     import matplotlib as mpl
     print("import sucessful")
     
