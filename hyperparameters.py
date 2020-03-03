@@ -21,6 +21,7 @@ LEARN_RATE = 1e-3
 # DECAY_STEP = 25000 # This is for step decay, however we are using dynamic decaying
 LR_DECAY_RATE = 0.5
 STOP_THRESHOLD = 1e-5
+GRAD_CLIP = 10
 
 # Data Specific parameters
 X_RANGE = [i for i in range(0, 8 )]

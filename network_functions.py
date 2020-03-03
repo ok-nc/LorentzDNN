@@ -1,5 +1,5 @@
 """
-The class wrapper for the networks
+Wrapper functions for the networks
 """
 # Built-in
 import os
@@ -19,6 +19,7 @@ import matplotlib
 matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pyplot as plt
+# from mpl.toolkits.mplot3D import Axes3D
 
 
 
@@ -78,11 +79,15 @@ class Network(object):
         # Loss function to handle the gradients of the Lorentz layer
 
         # custom_loss = torch.abs(torch.mean((logit - labels)**2))
-        custom_loss = nn.functional.mse_loss(logit, labels)
-        # derivative_loss = logit
-        # for i in range(logit.size()[1]-1):
-        #     derivative_loss[:,i+1] = nn.functional.mse_loss(logit[:,i+1] - logit[:,i], labels[:,i+1] - labels[:,i])
+        # custom_loss = nn.functional.mse_loss(logit, labels)
+        # logit_diff = logit[1:] - logit[:-1]
+        # labels_diff = labels[1:] - labels[:-1]
+        # derivative_loss = nn.functional.mse_loss(logit_diff, labels_diff)
         # custom_loss += derivative_loss
+        # logit_norm = nn.functional.instance_norm(logit)
+        # labels_norm = nn.functional.instance_norm(labels)
+        # custom_loss = nn.functional.smooth_l1_loss(logit, labels) - torch.tensordot(logit_norm, labels_norm)
+        custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         return custom_loss
 
     def make_optimizer(self):
@@ -137,14 +142,15 @@ class Network(object):
             #     weights, fmt='%.3f', delimiter=',')
 
             # Reshape the weights into a square dimension for plotting, zero padding if necessary
-            min = np.amin(np.asarray(weights.shape))
-            max = np.amax(np.asarray(weights.shape))
-            sq = int(np.floor(np.sqrt(min*max))+1)
-            diff = np.zeros((1,int(sq**2 - (min*max))), dtype='float64')
-            weights = weights.reshape((1,-1))
+            wmin = np.amin(np.asarray(weights.shape))
+            wmax = np.amax(np.asarray(weights.shape))
+            sq = int(np.floor(np.sqrt(wmin * wmax)) + 1)
+            diff = np.zeros((1, int(sq**2 - (wmin * wmax))), dtype='float64')
+            weights = weights.reshape((1, -1))
             weights = np.concatenate((weights, diff), axis=1)
-            f = plt.figure(figsize=(10,5))
-            c = plt.imshow(weights.reshape((sq,sq)), cmap=plt.get_cmap('viridis'))
+            f = plt.figure(figsize=(10, 5))
+
+            c = plt.imshow(weights.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
             plt.colorbar(c, fraction=0.03)
 
             self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Weights'.format(1), figure=f, global_step=epoch)
@@ -158,21 +164,22 @@ class Network(object):
         if batch == 0 and epoch > 0:
             gradients = self.model.linears[layer].weight.grad.cpu().data.numpy()
             # if epoch == 0:
-                # np.savetxt('Training_Gradients_Lorentz_Layer' + name,
-                #     weights, fmt='%.3f', delimiter=',')
+            #     np.savetxt('Training_Gradients_Lorentz_Layer' + name,
+            #                gradients, fmt='%.3f', delimiter=',')
 
             # Reshape the gradients into a square dimension for plotting, zero padding if necessary
-            min = np.amin(np.asarray(gradients.shape))
-            max = np.amax(np.asarray(gradients.shape))
-            sq = int(np.floor(np.sqrt(min * max)) + 1)
-            diff = np.zeros((1, int(sq ** 2 - (min * max))), dtype='float64')
+            grmin = np.amin(np.asarray(gradients.shape))
+            grmax = np.amax(np.asarray(gradients.shape))
+            sq = int(np.floor(np.sqrt(grmin * grmax)) + 1)
+            diff = np.zeros((1, int(sq ** 2 - (grmin * grmax))), dtype='float64')
             gradients = gradients.reshape((1, -1))
             gradients = np.concatenate((gradients, diff), axis=1)
             f = plt.figure(figsize=(10, 5))
             c = plt.imshow(gradients.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
             plt.colorbar(c, fraction=0.03)
 
-            self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Gradients'.format(1), figure=f, global_step=epoch)
+            self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Gradients'.format(1),
+                                figure=f, global_step=epoch)
 
     def train(self):
         """
@@ -221,8 +228,9 @@ class Network(object):
                 loss.backward()                                         # Calculate the backward gradients
                 # self.record_weight(name='after_backward', batch=j, epoch=epoch)
 
-                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 5)  # Clip gradients to help with training
-                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)  # Clip norm to help with training
+                # Clip gradients to help with training
+                torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
+                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.flags.grad_clip)
 
                 self.optm.step()                                        # Move one step the optimizer
                 # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
@@ -242,7 +250,7 @@ class Network(object):
             train_avg_loss = np.mean(train_loss)
             train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
 
-            if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
+            if epoch % self.flags.eval_step == 0:           # For eval steps, do the evaluations and tensor board
                 # Record the training loss to tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Loss/train', train_avg_loss, epoch)
@@ -262,7 +270,8 @@ class Network(object):
                 for j in range(self.flags.num_plot_compare):
                     f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
                                              Ytruth=spectra[j, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample ' + str(j) +') e2 Spectrum'.format(1), figure=f, global_step=epoch)
+                    self.log.add_figure(tag='Sample ' + str(j) +') e2 Spectrum'.format(1),
+                                        figure=f, global_step=epoch)
 
                 # f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
                 # self.log.add_figure(tag='Single Batch Training MSE Histogram'.format(1), figure=f2,
@@ -279,7 +288,7 @@ class Network(object):
                     logit, last_Lor_layer = self.model(geometry)
                     #loss = self.make_MSE_loss(logit, spectra)                   # compute the loss
                     loss = self.make_custom_loss(logit, spectra)
-                    test_loss.append(np.copy(loss.cpu().data.numpy()))                                       # Aggregate the loss
+                    test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
 
                 # Record the testing loss to the tensorboard
                 test_avg_loss = np.mean(test_loss)
@@ -369,7 +378,8 @@ class Network(object):
                 for j in range(self.flags.num_plot_compare):
                     f = self.compare_Lor_params(pred=last_Lor_layer[j, :].cpu().data.numpy(),
                                              truth=lor_params[j, :12].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
+                    self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.
+                                        format(1), figure=f, global_step=epoch)
 
                 # Pretraining files contain both Lorentz parameters and simulated model spectra
                 pretrain_sim_prediction = lor_params[:, 12:]
@@ -379,7 +389,8 @@ class Network(object):
 
                     f = self.compare_spectra(Ypred=pretrain_model_prediction[j, :].cpu().data.numpy(),
                                              Ytruth=pretrain_sim_prediction[j, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Model ' + str(j) +') e2 Prediction'.format(1), figure=f, global_step=epoch)
+                    self.log.add_figure(tag='Model ' + str(j) +') e2 Prediction'.format(1),
+                                        figure=f, global_step=epoch)
 
                 # f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
                 # self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,

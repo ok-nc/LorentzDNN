@@ -349,7 +349,7 @@ def Lorentz_layer(Lorentz_params):
     # ab = torch.exp(-0.0005 * 4 * math.pi * mul(d, k))
     # T_coeff = div(4 * n, add(n_12, k2))
     # # T = mul(T_coeff, ab).float()
-    T = e2.float()
+    T = torch.abs(e2).float()
 
     """
     Debugging and plotting (This is very slow, comment to boost)

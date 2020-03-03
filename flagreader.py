@@ -42,6 +42,9 @@ def read_flag():
                         help='decay learn rate by multiplying this factor')
     parser.add_argument('--stop_threshold', default=STOP_THRESHOLD, type=float,
                         help='The threshold below which training should stop')
+    parser.add_argument('--grad_clip', default=GRAD_CLIP, type=float,
+                        help='Gradient clipping value')
+
     # Data specific Params
     parser.add_argument('--geoboundary', default=GEOBOUNDARY, type=tuple, help='the boundary of the geometric data')
     parser.add_argument('--data-dir', default=DATA_DIR, type=str, help='data directory')
