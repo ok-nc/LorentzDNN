@@ -2,7 +2,7 @@ dataIn
 models
 figs
 evaluate_model.py
-__pycache__
+__pycache__/
 */*.csv
 */*.png
 */*.jpg
