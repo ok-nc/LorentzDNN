@@ -351,6 +351,10 @@ def Lorentz_layer(Lorentz_params):
     # # T = mul(T_coeff, ab).float()
     T = torch.abs(e2).float()
 
+    smallest = np.min(T.cpu().data.numpy())
+    if smallest < 0:
+        print("There is a value that is smaller than 0 after your torch.abs: ", smallest)
+    assert np.min(T.cpu().data.numpy()) < 0, "there is smaller than 0 happening"
     """
     Debugging and plotting (This is very slow, comment to boost)
     """
