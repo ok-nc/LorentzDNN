@@ -7,3 +7,4 @@ evaluate_model.py
 */*.jpg
 */*.sh
 .idea/*
+run02.sh
