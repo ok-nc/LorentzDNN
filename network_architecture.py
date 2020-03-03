@@ -103,7 +103,7 @@ class Forward(nn.Module):
         if self.use_lorentz:
             #last_Lor_layer = out[:, :-1]
             # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
-            #out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
+            # out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
             #out = F.relu(out) + 0.00001
             last_Lor_layer = out[:, :-1]
 
@@ -120,9 +120,9 @@ class Forward(nn.Module):
             if self.fix_w0:
                 w0 = self.w0.unsqueeze(0).unsqueeze(2)
             else:
-                w0 = out[:, :, 0].unsqueeze(2) * 5
-            wp = out[:, :, 1].unsqueeze(2) * 5
-            g  = out[:, :, 2].unsqueeze(2) * 0.5
+                w0 = out[:, :, 0].unsqueeze(2) * 1      # This was set to 5 with sigmoid activation
+            wp = out[:, :, 1].unsqueeze(2) * 1          # This was set to 5 with sigmoid activation
+            g  = out[:, :, 2].unsqueeze(2) * 1        # This was set to 0.5 with sigmoid activation
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()
@@ -200,7 +200,7 @@ class Forward(nn.Module):
             ab = torch.exp(-0.0005 * 4 * math.pi * mul(d, k))
             T_coeff = div(4*n, add(n_12, k2))
             # T = mul(T_coeff, ab).float()
-            T = e2.float()
+            T = torch.abs(e2).float()
 
             """
             Debugging and plotting (This is very slow, comment to boost)
@@ -349,12 +349,9 @@ def Lorentz_layer(Lorentz_params):
     # ab = torch.exp(-0.0005 * 4 * math.pi * mul(d, k))
     # T_coeff = div(4 * n, add(n_12, k2))
     # # T = mul(T_coeff, ab).float()
-    T = torch.abs(e2).float()
+    T = e2.float()
 
-    smallest = np.min(T.cpu().data.numpy())
-    if smallest < 0:
-        print("There is a value that is smaller than 0 after your torch.abs: ", smallest)
-    assert np.min(T.cpu().data.numpy()) < 0, "there is smaller than 0 happening"
+
     """
     Debugging and plotting (This is very slow, comment to boost)
     """
