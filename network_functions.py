@@ -74,6 +74,9 @@ class Network(object):
 
         if logit is None:
             return None
+
+        # Loss function to handle the gradients of the Lorentz layer
+
         # custom_loss = torch.abs(torch.mean((logit - labels)**2))
         custom_loss = nn.functional.mse_loss(logit, labels)
         # derivative_loss = logit
@@ -123,53 +126,57 @@ class Network(object):
 
     def record_weight(self, name, layer=-1, batch=999, epoch=999):
         """
-        Record the weight to compare and see which layer it started to change
+        Record the weights for a specific layer to tensorboard (save to file if desired)
         :input: name: The name to save
         :input: layer: The layer to check
         """
         if batch == 0:
-            weights = self.model.linears[layer].weight.cpu().data.numpy()
+            weights = self.model.linears[layer].weight.cpu().data.numpy()   # Get the weights
+            # if epoch == 0:
+            # np.savetxt('Training_Weights_Lorentz_Layer' + name,
+            #     weights, fmt='%.3f', delimiter=',')
+
+            # Reshape the weights into a square dimension for plotting, zero padding if necessary
             min = np.amin(np.asarray(weights.shape))
             max = np.amax(np.asarray(weights.shape))
             sq = int(np.floor(np.sqrt(min*max))+1)
             diff = np.zeros((1,int(sq**2 - (min*max))), dtype='float64')
-            # if epoch == 0:
-                # np.savetxt('Training_Weights_Lorentz_Layer' + name,
-                #     weights, fmt='%.3f', delimiter=',')
             weights = weights.reshape((1,-1))
             weights = np.concatenate((weights, diff), axis=1)
             f = plt.figure(figsize=(10,5))
             c = plt.imshow(weights.reshape((sq,sq)), cmap=plt.get_cmap('viridis'))
             plt.colorbar(c, fraction=0.03)
-            # f.axes.get_xaxis().set_visible(False)
-            # f.axes.get_yaxis().set_visible(False)
+
             self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Weights'.format(1), figure=f, global_step=epoch)
 
     def record_grad(self, name, layer=-1, batch=999, epoch=999):
         """
-        Record the weight to compare and see which layer it started to change
+        Record the gradients for a specific layer to tensorboard (save to file if desired)
         :input: name: The name to save
         :input: layer: The layer to check
         """
         if batch == 0 and epoch > 0:
             gradients = self.model.linears[layer].weight.grad.cpu().data.numpy()
+            # if epoch == 0:
+                # np.savetxt('Training_Gradients_Lorentz_Layer' + name,
+                #     weights, fmt='%.3f', delimiter=',')
+
+            # Reshape the gradients into a square dimension for plotting, zero padding if necessary
             min = np.amin(np.asarray(gradients.shape))
             max = np.amax(np.asarray(gradients.shape))
             sq = int(np.floor(np.sqrt(min * max)) + 1)
             diff = np.zeros((1, int(sq ** 2 - (min * max))), dtype='float64')
             gradients = gradients.reshape((1, -1))
             gradients = np.concatenate((gradients, diff), axis=1)
-            # if epoch == 0:
-                # np.savetxt('Training_Gradients_Lorentz_Layer' + name,
-                #     weights, fmt='%.3f', delimiter=',')
             f = plt.figure(figsize=(10, 5))
             c = plt.imshow(gradients.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
             plt.colorbar(c, fraction=0.03)
+
             self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Gradients'.format(1), figure=f, global_step=epoch)
 
     def train(self):
         """
-        The major training function. This would start the training using information given in the flags
+        The major training function. This starts the training using parameters given in the flags
         :return: None
         """
         print("Starting training process")
@@ -181,11 +188,11 @@ class Network(object):
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
         self.lr_scheduler = self.make_lr_scheduler()
+
+        # Start a tensorboard session for logging loss and training images
         tb = program.TensorBoard()
         tb.configure(argv=[None, '--logdir', self.ckpt_dir])
         url = tb.launch()
-        # self.optm.zero_grad()
-        # self.model = torch.load(os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
 
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
@@ -194,30 +201,33 @@ class Network(object):
             train_loss_eval_mode_list = []
             self.model.train()
             for j, (geometry, spectra) in enumerate(self.train_loader):
+                # Record weights and gradients to tb
                 for ind, fc_num in enumerate(self.flags.linear):
                     self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
                     self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
+
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
                     spectra = spectra.cuda()                            # Put data onto GPU
-                self.optm.zero_grad()
-                # Zero the gradient first
-                logit, last_Lor_layer = self.model(geometry)                        # Get the output
+
+                self.optm.zero_grad()                                   # Zero the gradient first
+                logit, last_Lor_layer = self.model(geometry)            # Get the output
 
                 # print("logit type:", logit.dtype)
                 # print("spectra type:", spectra.dtype)
-                #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
 
+                #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
                 loss = self.make_custom_loss(logit, spectra)
-                loss.backward()                                # Calculate the backward gradients
+                loss.backward()                                         # Calculate the backward gradients
                 # self.record_weight(name='after_backward', batch=j, epoch=epoch)
 
-                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 5)      # Clip gradients to help with training
-                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)  # Clip gradients to help with training
-                self.optm.step()                                    # Move one step the optimizer
+                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 5)  # Clip gradients to help with training
+                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)  # Clip norm to help with training
+
+                self.optm.step()                                        # Move one step the optimizer
                 # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
 
-                train_loss.append(np.copy(loss.cpu().data.numpy()))                                     # Aggregate the loss
+                train_loss.append(np.copy(loss.cpu().data.numpy()))     # Aggregate the loss
 
                 #############################################
                 # Extra test for err_test < err_train issue #
@@ -233,7 +243,7 @@ class Network(object):
             train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
 
             if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
-                # Record the training loss to the tensorboard
+                # Record the training loss to tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Loss/train', train_avg_loss, epoch)
                 self.log.add_scalar('Loss/train_eval_mode', train_avg_eval_mode_loss, epoch)
@@ -296,7 +306,7 @@ class Network(object):
 
     def pretrain(self, pretrain_loader, pretest_loader):
         """
-        The pretraining function. This would start the training using information given in the flags
+        The pretraining function. This starts the pretraining using parameters given in the flags
         :return: None
         """
         cuda = True if torch.cuda.is_available() else False
@@ -306,35 +316,36 @@ class Network(object):
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
         self.lr_scheduler = self.make_lr_scheduler()
+
+        # Start a tensorboard session for logging loss and training images
         tb = program.TensorBoard()
         tb.configure(argv=[None, '--logdir', self.ckpt_dir])
         url = tb.launch()
 
         print("Starting pre-training process")
-        for epoch in range(200):
-            # print("This is training Epoch {}".format(epoch))
+        for epoch in range(200):                                    # Only 200 epochs needed for pretraining
+            # print("This is pretrainin Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = []
             train_loss_eval_mode_list = []
             self.model.train()
             for j, (geometry, lor_params) in enumerate(pretrain_loader):
+                # Record weights and gradients to tb
                 self.record_weight(name='Pretraining', batch=j, epoch=epoch)
                 self.record_grad(name='Pretraining', batch=j, epoch=epoch)
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
-                    lor_params = lor_params.cuda()                            # Put data onto GPU
-                self.optm.zero_grad()                               # Zero the gradient first
-                logit, last_Lor_layer = self.model(geometry)                        # Get the output
+                    lor_params = lor_params.cuda()                      # Put data onto GPU
+                self.optm.zero_grad()                                   # Zero the gradient first
+                logit, last_Lor_layer = self.model(geometry)            # Get the output
                 # print("label size:", lor_params.size())
                 # print("logit size:", last_Lor_layer.size())
-                # print(logit)
-                # print(lor_params)
 
-                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])              # Get the loss tensor
+                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])       # Get the loss tensor
                 pretrain_loss.backward()                                # Calculate the backward gradients
                 # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
-                self.optm.step()                                    # Move one step the optimizer
-                train_loss.append(np.copy(pretrain_loss.cpu().data.numpy()))                                   # Aggregate the loss
+                self.optm.step()                                        # Move one step the optimizer
+                train_loss.append(np.copy(pretrain_loss.cpu().data.numpy()))                # Aggregate the loss
 
                 #############################################
                 # Extra test for err_test < err_train issue #
@@ -349,8 +360,7 @@ class Network(object):
             train_avg_loss = np.mean(train_loss)
             train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
 
-            if epoch % 20 == 0:
-            #if epoch % self.flags.eval_step == 0:                        # For eval steps, do the evaluations and tensor board
+            if epoch % 20 == 0:            # Evaluate every 20 steps
                 # Record the training loss to the tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
@@ -361,6 +371,7 @@ class Network(object):
                                              truth=lor_params[j, :12].cpu().data.numpy())
                     self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.format(1), figure=f, global_step=epoch)
 
+                # Pretraining files contain both Lorentz parameters and simulated model spectra
                 pretrain_sim_prediction = lor_params[:, 12:]
                 pretrain_model_prediction = Lorentz_layer(last_Lor_layer)
 
@@ -390,6 +401,7 @@ class Network(object):
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
 
+            # Save pretrained model at end
             if epoch == 199:
                 # weights = self.model.linears[-1].weight.cpu().data.numpy()
                 # # print(weights.shape)

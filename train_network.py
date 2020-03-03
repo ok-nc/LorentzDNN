@@ -35,6 +35,7 @@ def training_from_flag(flags):
                                                      data_dir=flags.data_dir,
                                                      test_ratio=flags.test_ratio,pre_train=False)
 
+    # Import the pretraining data separately (no test data)
     pretrain_loader, pretest_loader = datareader.read_data(x_range=flags.x_range,
                                                      y_range=[i for i in range(8, 320)],
                                                      geoboundary=flags.geoboundary,
