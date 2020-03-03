@@ -8,3 +8,5 @@ __pycache__/
 */*.jpg
 */*.sh
 .idea/*
+run02.sh
+*.err
