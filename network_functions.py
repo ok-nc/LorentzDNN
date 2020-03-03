@@ -127,16 +127,23 @@ class Network(object):
         :input: name: The name to save
         :input: layer: The layer to check
         """
-        weights = self.model.linears[layer].weight.cpu().data.numpy()
-        # if batch == 0 and epoch == 0:
-        #     np.savetxt('Training_Weights_Lorentz_Layer' + name,
-        #         weights, fmt='%.3f', delimiter=',')
-        f = plt.figure(figsize=(10,10))
-        c = plt.imshow(weights.reshape((65,100)), cmap=plt.get_cmap('viridis'))
-        plt.colorbar(c, fraction=0.03)
-        # f.axes.get_xaxis().set_visible(False)
-        # f.axes.get_yaxis().set_visible(False)
-        self.log.add_figure(tag='Layer ' + str(layer) + ') Weights'.format(1), figure=f, global_step=epoch)
+        if batch == 0:
+            weights = self.model.linears[layer].weight.cpu().data.numpy()
+            min = np.amin(np.asarray(weights.shape))
+            max = np.amax(np.asarray(weights.shape))
+            sq = int(np.floor(np.sqrt(min*max))+1)
+            diff = np.zeros((1,int(sq**2 - (min*max))), dtype='float64')
+            # if epoch == 0:
+                # np.savetxt('Training_Weights_Lorentz_Layer' + name,
+                #     weights, fmt='%.3f', delimiter=',')
+            weights = weights.reshape((1,-1))
+            weights = np.concatenate((weights, diff), axis=1)
+            f = plt.figure(figsize=(10,5))
+            c = plt.imshow(weights.reshape((sq,sq)), cmap=plt.get_cmap('viridis'))
+            plt.colorbar(c, fraction=0.03)
+            # f.axes.get_xaxis().set_visible(False)
+            # f.axes.get_yaxis().set_visible(False)
+            self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Weights'.format(1), figure=f, global_step=epoch)
 
     def record_grad(self, name, layer=-1, batch=999, epoch=999):
         """
@@ -144,15 +151,21 @@ class Network(object):
         :input: name: The name to save
         :input: layer: The layer to check
         """
-        gradients = self.model.linears[layer].grad.data.cpu().data.numpy()
-        if batch == 0 and epoch == 0:
-            np.savetxt('Training_Gradients_Lorentz_Layer' + name,
-                self.model.linears[layer].grad.data.cpu().data.numpy(),
-                fmt='%.3f', delimiter=',')
-        f = plt.figure(figsize=(10, 10))
-        c = plt.imshow(gradients.reshape((65, 100)), cmap=plt.get_cmap('viridis'))
-        plt.colorbar(c, fraction=0.03)
-        self.log.add_figure(tag='Layer ' + str(layer) + ') Gradients'.format(1), figure=f, global_step=epoch)
+        if batch == 0 and epoch > 0:
+            gradients = self.model.linears[layer].weight.grad.cpu().data.numpy()
+            min = np.amin(np.asarray(gradients.shape))
+            max = np.amax(np.asarray(gradients.shape))
+            sq = int(np.floor(np.sqrt(min * max)) + 1)
+            diff = np.zeros((1, int(sq ** 2 - (min * max))), dtype='float64')
+            gradients = gradients.reshape((1, -1))
+            gradients = np.concatenate((gradients, diff), axis=1)
+            # if epoch == 0:
+                # np.savetxt('Training_Gradients_Lorentz_Layer' + name,
+                #     weights, fmt='%.3f', delimiter=',')
+            f = plt.figure(figsize=(10, 5))
+            c = plt.imshow(gradients.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
+            plt.colorbar(c, fraction=0.03)
+            self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Gradients'.format(1), figure=f, global_step=epoch)
 
     def train(self):
         """
@@ -163,7 +176,7 @@ class Network(object):
         cuda = True if torch.cuda.is_available() else False
         if cuda:
             self.model.cuda()
-        self.record_weight(name='start_of_train', batch=0, epoch=0)
+        # self.record_weight(name='start_of_train', batch=0, epoch=0)
 
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
@@ -181,7 +194,9 @@ class Network(object):
             train_loss_eval_mode_list = []
             self.model.train()
             for j, (geometry, spectra) in enumerate(self.train_loader):
-                self.record_weight(name='before_cuda', batch=j, epoch=epoch)
+                for ind, fc_num in enumerate(self.flags.linear):
+                    self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
+                    self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
                     spectra = spectra.cuda()                            # Put data onto GPU
@@ -195,11 +210,12 @@ class Network(object):
 
                 loss = self.make_custom_loss(logit, spectra)
                 loss.backward()                                # Calculate the backward gradients
-                self.record_weight(name='after_backward', batch=j, epoch=epoch)
+                # self.record_weight(name='after_backward', batch=j, epoch=epoch)
 
-                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
+                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 5)      # Clip gradients to help with training
+                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)  # Clip gradients to help with training
                 self.optm.step()                                    # Move one step the optimizer
-                self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
+                # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
 
                 train_loss.append(np.copy(loss.cpu().data.numpy()))                                     # Aggregate the loss
 
@@ -302,7 +318,8 @@ class Network(object):
             train_loss_eval_mode_list = []
             self.model.train()
             for j, (geometry, lor_params) in enumerate(pretrain_loader):
-                self.record_weight(name='Pretraining', batch=0, epoch=epoch)
+                self.record_weight(name='Pretraining', batch=j, epoch=epoch)
+                self.record_grad(name='Pretraining', batch=j, epoch=epoch)
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
                     lor_params = lor_params.cuda()                            # Put data onto GPU
@@ -436,7 +453,7 @@ class Network(object):
         plt.ylabel("Parameter value")
         return f
 
-    def compare_spectra(self, Ypred, Ytruth, T=None, title=None, figsize=[15, 5],
+    def compare_spectra(self, Ypred, Ytruth, T=None, title=None, figsize=[10, 5],
                         T_num=10, E1=None, E2=None, N=None, K=None, eps_inf=None):
         """
         Function to plot the comparison for predicted spectra and truth spectra
