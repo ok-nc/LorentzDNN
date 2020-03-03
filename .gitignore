@@ -8,3 +8,4 @@ evaluate_model.py
 */*.sh
 .idea/*
 run02.sh
+*.err
