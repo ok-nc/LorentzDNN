@@ -19,7 +19,7 @@ import matplotlib
 matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pyplot as plt
-# from mpl.toolkits.mplot3D import Axes3D
+from mpl_toolkits.mplot3d import Axes3D
 
 
 
@@ -80,14 +80,18 @@ class Network(object):
 
         # custom_loss = torch.abs(torch.mean((logit - labels)**2))
         # custom_loss = nn.functional.mse_loss(logit, labels)
+        custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # logit_diff = logit[1:] - logit[:-1]
         # labels_diff = labels[1:] - labels[:-1]
         # derivative_loss = nn.functional.mse_loss(logit_diff, labels_diff)
         # custom_loss += derivative_loss
         # logit_norm = nn.functional.instance_norm(logit)
         # labels_norm = nn.functional.instance_norm(labels)
-        # custom_loss = nn.functional.smooth_l1_loss(logit, labels) - torch.tensordot(logit_norm, labels_norm)
-        custom_loss = nn.functional.smooth_l1_loss(logit, labels)
+
+        # dotproduct = torch.tensordot(logit, labels)
+        # loss_penalty = torch.exp(-dotproduct/1000000)
+        # # print('Loss penalty is '+str(dotproduct.cpu().data.numpy()/10000))
+        # custom_loss += loss_penalty
         return custom_loss
 
     def make_optimizer(self):
@@ -100,7 +104,7 @@ class Network(object):
         elif self.flags.optim == 'RMSprop':
             op = torch.optim.RMSprop(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
         elif self.flags.optim == 'SGD':
-            op = torch.optim.SGD(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+            op = torch.optim.SGD(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale, momentum=0.9, nesterov=True)
         else:
             raise Exception("Optimizer is not available at the moment.")
         return op
@@ -148,11 +152,10 @@ class Network(object):
             diff = np.zeros((1, int(sq**2 - (wmin * wmax))), dtype='float64')
             weights = weights.reshape((1, -1))
             weights = np.concatenate((weights, diff), axis=1)
-            f = plt.figure(figsize=(10, 5))
-
-            c = plt.imshow(weights.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
-            plt.colorbar(c, fraction=0.03)
-
+            # f = plt.figure(figsize=(10, 5))
+            # c = plt.imshow(weights.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
+            # plt.colorbar(c, fraction=0.03)
+            f = self.plot_weights_3D(weights.reshape((sq, sq)), sq)
             self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Weights'.format(1), figure=f, global_step=epoch)
 
     def record_grad(self, name, layer=-1, batch=999, epoch=999):
@@ -174,9 +177,10 @@ class Network(object):
             diff = np.zeros((1, int(sq ** 2 - (grmin * grmax))), dtype='float64')
             gradients = gradients.reshape((1, -1))
             gradients = np.concatenate((gradients, diff), axis=1)
-            f = plt.figure(figsize=(10, 5))
-            c = plt.imshow(gradients.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
-            plt.colorbar(c, fraction=0.03)
+            # f = plt.figure(figsize=(10, 5))
+            # c = plt.imshow(gradients.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
+            # plt.colorbar(c, fraction=0.03)
+            f = self.plot_weights_3D(gradients.reshape((sq, sq)), sq)
 
             self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Gradients'.format(1),
                                 figure=f, global_step=epoch)
@@ -295,7 +299,7 @@ class Network(object):
                 self.log.add_scalar('Loss/test', test_avg_loss, epoch)
 
                 print("This is Epoch %d, training loss %.5f, validation loss %.5f" \
-                      % (epoch, train_avg_loss, test_avg_loss ))
+                      % (epoch, train_avg_eval_mode_loss, test_avg_loss ))
 
                 # Model improving, save the model
                 if test_avg_loss < self.best_validation_loss:
@@ -309,7 +313,7 @@ class Network(object):
                         return None
 
             # Learning rate decay upon plateau
-            self.lr_scheduler.step(train_avg_loss)
+            self.lr_scheduler.step(train_avg_eval_mode_loss)
 
         self.log.close()
 
@@ -396,10 +400,10 @@ class Network(object):
                 # self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
                 #                     global_step=epoch)
 
-                print("This is Epoch %d, pretraining loss %.5f" % (epoch, train_avg_loss ))
+                print("This is Epoch %d, pretraining loss %.5f" % (epoch, train_avg_eval_mode_loss ))
 
                 # Model improving, save the model
-                if train_avg_loss < self.best_pretrain_loss:
+                if train_avg_eval_mode_loss < self.best_pretrain_loss:
                     self.best_pretrain_loss = train_avg_loss
                     self.save()
                     print("Saving the model...")
@@ -410,7 +414,7 @@ class Network(object):
                         return None
 
             # Learning rate decay upon plateau
-            self.lr_scheduler.step(train_avg_loss)
+            self.lr_scheduler.step(train_avg_eval_mode_loss)
 
             # Save pretrained model at end
             if epoch == 199:
@@ -534,3 +538,21 @@ class Network(object):
         # plt.show()
         # print('Backprop (Avg MSE={:.4e})'.format(np.mean(mse)))
 
+
+    def plot_weights_3D(self, data, dim, figsize=[10, 5]):
+
+        fig = plt.figure(figsize=figsize)
+
+        ax1 = fig.add_subplot(121, projection='3d', proj_type='ortho')
+        ax2 = fig.add_subplot(122)
+
+        xx, yy = np.meshgrid(np.linspace(0,dim,dim), np.linspace(0,dim,dim))
+        cmp = plt.get_cmap('viridis')
+
+        ax1.plot_surface(xx, yy, data, cmap=cmp)
+        ax1.view_init(10, -45)
+
+        c2 = ax2.imshow(data, cmap=cmp)
+        plt.colorbar(c2, fraction=0.03)
+
+        return fig

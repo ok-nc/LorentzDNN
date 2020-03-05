@@ -56,7 +56,7 @@ class Forward(nn.Module):
         self.linears = nn.ModuleList([])
         self.bn_linears = nn.ModuleList([])
         for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
-            self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1]))
+            self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=None))
             self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1]))
 
         # Conv Layer definitions here
@@ -103,7 +103,7 @@ class Forward(nn.Module):
         if self.use_lorentz:
             #last_Lor_layer = out[:, :-1]
             # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
-            # out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
+            out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
             #out = F.relu(out) + 0.00001
             last_Lor_layer = out[:, :-1]
 
@@ -120,9 +120,9 @@ class Forward(nn.Module):
             if self.fix_w0:
                 w0 = self.w0.unsqueeze(0).unsqueeze(2)
             else:
-                w0 = out[:, :, 0].unsqueeze(2) * 1      # This was set to 5 with sigmoid activation
-            wp = out[:, :, 1].unsqueeze(2) * 1          # This was set to 5 with sigmoid activation
-            g  = out[:, :, 2].unsqueeze(2) * 1        # This was set to 0.5 with sigmoid activation
+                w0 = out[:, :, 0].unsqueeze(2) * 5      # This was set to 5 with sigmoid activation
+            wp = out[:, :, 1].unsqueeze(2) * 5          # This was set to 5 with sigmoid activation
+            g  = out[:, :, 2].unsqueeze(2) * 0.5        # This was set to 0.5 with sigmoid activation
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()
@@ -134,9 +134,9 @@ class Forward(nn.Module):
             self.eps_inf = epsilon_inf.data.cpu().numpy()
 
             # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
-            w0 = w0.expand(out.size(0), self.num_lorentz, self.num_spec_point)
-            wp = wp.expand_as(w0)
-            g = g.expand_as(w0)
+            w0 = torch.abs(w0.expand(out.size(0), self.num_lorentz, self.num_spec_point))
+            wp = torch.abs(wp.expand_as(w0))
+            g = torch.abs(g.expand_as(w0))
             w_expand = self.w.expand_as(g)
             """
             Testing code
@@ -200,7 +200,7 @@ class Forward(nn.Module):
             ab = torch.exp(-0.0005 * 4 * math.pi * mul(d, k))
             T_coeff = div(4*n, add(n_12, k2))
             # T = mul(T_coeff, ab).float()
-            T = torch.abs(e2).float()
+            T = e2.float()
 
             """
             Debugging and plotting (This is very slow, comment to boost)
