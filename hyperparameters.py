@@ -26,6 +26,8 @@ GRAD_CLIP = 10
 # Data Specific parameters
 X_RANGE = [i for i in range(0, 8 )]
 Y_RANGE = [i for i in range(8 , 308 )]
+FREQ_LOW = 0.5
+FREQ_HIGH = 5
 FORCE_RUN = True
 DATA_DIR = ''                # For local usage
 # DATA_DIR = 'C:/Users/labuser/mlmOK_Pytorch/'                # For Omar office desktop usage

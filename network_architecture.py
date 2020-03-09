@@ -16,7 +16,7 @@ from torch import pow, add, mul, div, sqrt
 
 
 class Forward(nn.Module):
-    def __init__(self, flags, fre_low=0.5, fre_high=5):
+    def __init__(self, flags):
         super(Forward, self).__init__()
 
         # Set up whether this uses a Lorentzian oscillator, this is a boolean value
@@ -36,7 +36,7 @@ class Forward(nn.Module):
             self.num_lorentz = int(flags.linear[-1] / 3)
 
             # Create the constant for mapping the frequency w
-            w_numpy = np.arange(fre_low, fre_high, (fre_high - fre_low) / self.num_spec_point)
+            w_numpy = np.arange(flags.freq_low, flags.freq_high, (flags.freq_high - flags.freq_low) / self.num_spec_point)
 
             self.fix_w0 = flags.fix_w0
             self.w0 = torch.tensor(np.arange(0, 5, 5 / self.num_lorentz))
@@ -103,8 +103,8 @@ class Forward(nn.Module):
         if self.use_lorentz:
             #last_Lor_layer = out[:, :-1]
             # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
-            out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
-            #out = F.relu(out) + 0.00001
+            # out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
+            # out = F.relu(out) + 0.00001
             last_Lor_layer = out[:, :-1]
 
             # Get the out into (batch_size, num_lorentz, 3) and the last epsilon_inf baseline
@@ -120,9 +120,9 @@ class Forward(nn.Module):
             if self.fix_w0:
                 w0 = self.w0.unsqueeze(0).unsqueeze(2)
             else:
-                w0 = out[:, :, 0].unsqueeze(2) * 5      # This was set to 5 with sigmoid activation
-            wp = out[:, :, 1].unsqueeze(2) * 5          # This was set to 5 with sigmoid activation
-            g  = out[:, :, 2].unsqueeze(2) * 0.5        # This was set to 0.5 with sigmoid activation
+                w0 = out[:, :, 0].unsqueeze(2) * 1      # This was set to 5 with sigmoid activation
+            wp = out[:, :, 1].unsqueeze(2) * 1          # This was set to 5 with sigmoid activation
+            g  = out[:, :, 2].unsqueeze(2) * 1        # This was set to 0.5 with sigmoid activation
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()

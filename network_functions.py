@@ -13,6 +13,7 @@ from tensorboard import program
 #from torchsummary import summary
 from torch.optim import lr_scheduler
 from network_architecture import Lorentz_layer
+from torchviz import make_dot
 
 # Libs
 import matplotlib
@@ -91,8 +92,40 @@ class Network(object):
         # dotproduct = torch.tensordot(logit, labels)
         # loss_penalty = torch.exp(-dotproduct/1000000)
         # # print('Loss penalty is '+str(dotproduct.cpu().data.numpy()/10000))
-        # custom_loss += loss_penalty
+        # additional_loss_term = self.make_e2_KK_loss(logit)
+        # custom_loss += additional_loss_term
         return custom_loss
+
+    def make_e2_KK_loss(self, logit=None):
+        # Enforces Kramers-Kronig causality on e2 derivative
+
+        if logit is None:
+            return None
+
+        num_spec_points = logit.shape[1]
+        dw = (self.flags.freq_high - self.flags.freq_low) / num_spec_points
+        w_numpy = np.arange(self.flags.freq_low, self.flags.freq_high, dw)
+        cuda = True if torch.cuda.is_available() else False
+        if cuda:
+            w = torch.tensor(w_numpy, requires_grad=False).cuda()
+        else:
+            w = torch.tensor(w_numpy, requires_grad=False)
+        w = w.expand_as(logit)
+        we_w = torch.mul(logit, w)
+        # print(logit.shape, w.shape, we_w.shape)
+        # we_w_diff = torch.zeros(we_w.shape, requires_grad=False)
+        we_w_diff = (we_w[:, 1:] - we_w[:, :-1])
+        dwe_dw = torch.div(we_w_diff, dw)
+        diff = torch.abs(torch.min(dwe_dw[:, :]))
+        f = self.compare_spectra(Ypred=we_w[0, 1:].cpu().data.numpy(),
+                                 Ytruth=dwe_dw[0, :].cpu().data.numpy(), label_y1='w*e(w)', label_y2='d(w*e)/dw')
+        self.log.add_figure(tag='Sample ' + str(0) + ') derivative e2 Spectrum'.format(1),
+                            figure=f)
+
+        # zero = torch.zeros(max.shape, requires_grad=False, dtype=torch.float32)
+        # print(loss.shape)
+        # print(diff)
+        return diff
 
     def make_optimizer(self):
         """
@@ -213,7 +246,8 @@ class Network(object):
             self.model.train()
             for j, (geometry, spectra) in enumerate(self.train_loader):
                 # Record weights and gradients to tb
-                for ind, fc_num in enumerate(self.flags.linear):
+                for ind in range(1):
+                # for ind, fc_num in enumerate(self.flags.linear):
                     self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
                     self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
 
@@ -229,6 +263,9 @@ class Network(object):
 
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
                 loss = self.make_custom_loss(logit, spectra)
+                if j == 0 and epoch == 0:
+                    im = make_dot(loss, params=dict(self.model.named_parameters())).render("Model Graph",
+                                                                                              format="png", directory=self.ckpt_dir)
                 loss.backward()                                         # Calculate the backward gradients
                 # self.record_weight(name='after_backward', batch=j, epoch=epoch)
 
@@ -481,7 +518,7 @@ class Network(object):
         return f
 
     def compare_spectra(self, Ypred, Ytruth, T=None, title=None, figsize=[10, 5],
-                        T_num=10, E1=None, E2=None, N=None, K=None, eps_inf=None):
+                        T_num=10, E1=None, E2=None, N=None, K=None, eps_inf=None, label_y1='Pred', label_y2='Truth'):
         """
         Function to plot the comparison for predicted spectra and truth spectra
         :param Ypred:  Predicted spectra, this should be a list of number of dimension 300, numpy
@@ -491,13 +528,11 @@ class Network(object):
         :return: The identifier of the figure
         """
         # Make the frequency into real frequency in THz
-        fre_low = 0.5
-        fre_high = 5
         num_points = len(Ypred)
-        frequency = fre_low + (fre_high - fre_low) / len(Ytruth) * np.arange(num_points)
+        frequency = self.flags.freq_low + (self.flags.freq_high - self.flags.freq_low) / len(Ytruth) * np.arange(num_points)
         f = plt.figure(figsize=figsize)
-        plt.plot(frequency, Ypred, label='Pred')
-        plt.plot(frequency, Ytruth, label='Truth')
+        plt.plot(frequency, Ypred, label=label_y1)
+        plt.plot(frequency, Ytruth, label=label_y2)
         if T is not None:
             plt.plot(frequency, T, linewidth=1, linestyle='--')
         if E2 is not None:
@@ -514,7 +549,7 @@ class Network(object):
             plt.plot(frequency, np.ones(np.shape(frequency)) * eps_inf, label="eps_inf")
         # plt.ylim([0, 1])
         plt.legend()
-        #plt.xlim([fre_low, fre_high])
+        #plt.xlim([self.flags.freq_low, self.flags.freq_high])
         plt.xlabel("Frequency (THz)")
         plt.ylabel("e2")
         if title is not None:

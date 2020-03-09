@@ -32,6 +32,8 @@ def read_flag():
     parser.add_argument('--reg-scale', type=float, default=REG_SCALE, help='#scale for regularization of dense layers')
     parser.add_argument('--x-range', type=list, default=X_RANGE, help='columns of input parameters')
     parser.add_argument('--y-range', type=list, default=Y_RANGE, help='columns of output parameters')
+    parser.add_argument('--freq-low', default=FREQ_LOW, type=float, help='lower bound to frequency range')
+    parser.add_argument('--freq-high', default=FREQ_HIGH, type=float, help='upper bound to frequency range')
     parser.add_argument('--batch-size', default=BATCH_SIZE, type=int, help='batch size (100)')
     parser.add_argument('--eval-step', default=EVAL_STEP, type=int, help='# steps between evaluations')
     parser.add_argument('--train-step', default=TRAIN_STEP, type=int, help='# steps to train on the dataSet')
