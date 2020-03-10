@@ -104,7 +104,7 @@ class Forward(nn.Module):
             #last_Lor_layer = out[:, :-1]
             # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
             # out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
-            # out = F.relu(out) + 0.00001
+            out = F.relu(out) + 0.00001
             last_Lor_layer = out[:, :-1]
 
             # Get the out into (batch_size, num_lorentz, 3) and the last epsilon_inf baseline
@@ -122,7 +122,7 @@ class Forward(nn.Module):
             else:
                 w0 = out[:, :, 0].unsqueeze(2) * 1      # This was set to 5 with sigmoid activation
             wp = out[:, :, 1].unsqueeze(2) * 1          # This was set to 5 with sigmoid activation
-            g  = out[:, :, 2].unsqueeze(2) * 1        # This was set to 0.5 with sigmoid activation
+            g = torch.sigmoid(out[:, :, 2].unsqueeze(2)) * 0.5        # This was set to 0.5 with sigmoid activation
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()
@@ -286,25 +286,25 @@ def Lorentz_layer(Lorentz_params):
     End of testing module
     """
     # Get the powers first
-    w02 = pow(w0, 2)
-    wp2 = pow(wp, 2)
-    w2 = pow(w_expand, 2)
-    g2 = pow(g, 2)
-
-    # Start calculating
-    s1 = add(w02, -w2)
-    s12 = pow(s1, 2)
-    n1 = mul(wp2, s1)
-    n2 = mul(wp2, mul(w_expand, g))
-    denom = add(s12, mul(w2, g2))
-    e1 = div(n1, denom)
-    e2 = div(n2, denom)
+    # w02 = pow(w0, 2)
+    # wp2 = pow(wp, 2)
+    # w2 = pow(w_expand, 2)
+    # g2 = pow(g, 2)
+    #
+    # # Start calculating
+    # s1 = add(w02, -w2)
+    # s12 = pow(s1, 2)
+    # n1 = mul(wp2, s1)
+    # n2 = mul(wp2, mul(w_expand, g))
+    # denom = add(s12, mul(w2, g2))
+    # e1 = div(n1, denom)
+    # e2 = div(n2, denom)
 
     # # This is the version of more "machine" code that hard to understand but much more memory efficient
-    # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
-    #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
-    # e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
-    #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+    e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
+             add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+    e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
+             add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
     # # End line for the 2 versions of code that do the same thing, 1 for memory efficient but ugly
 
 

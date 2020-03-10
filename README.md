@@ -21,11 +21,21 @@ This includes input layer (8), linear layers (25-1000), and lorentz layer (12-15
 Can achieve MSE ~ 5e-3, but fits do not look good. Need better architecture/strategy to find global min of loss surface.
 Old forward model (linear + conv layers) can achieve ~ 6-8e-4 MSE without Lorentz layer.  
 
+## 2020.03.6
+Model successfully trains on e2 spectra with pretraining on Lorentz parameters. Exploding/vanishing gradients
+are a big problem. Fixed by either clipping or using SmoothL1MSEloss to contain gradients. Model can train on e2 spectra
+without pretraining, but only if last linear layer uses sigmoid activation + Lorentz parameter bounds 
+(5,5,0.5 for toy model). Best performance ~ 0.05-0.08 MSE with pretty good looking oscillator fits. 
+
+## 2020.03.10
+Trying to remove constraints on model training on e2 sim data. Replacing sigmoid with relu (except for damping param)
+results in good but not great fits (0.6-1 MSE). Has trouble fitting smaller/narrower oscillators, as loss tends
+to get dominated by big/strong ones, and model plateaus nearest local min. 
+
 ## To dos:
-1. Organize plotting and analysis functions 
-2. Add parameter visualizations to tensorboard
-3. Find best way to initialize params + best optimizer. 
-4. Pretrain on single spectrum
-5. Lorentz activation functions
+1. Organize plotting and analysis functions into separate module
+2. Find best way to initialize params + best loss function (physics constrained)
+3. Pretrain on single spectrum
+4. Lorentz activation functions
 
 

@@ -92,8 +92,9 @@ class Network(object):
         # dotproduct = torch.tensordot(logit, labels)
         # loss_penalty = torch.exp(-dotproduct/1000000)
         # # print('Loss penalty is '+str(dotproduct.cpu().data.numpy()/10000))
-        # additional_loss_term = self.make_e2_KK_loss(logit)
-        # custom_loss += additional_loss_term
+        # if custom_loss < 10:
+        #     additional_loss_term = self.make_e2_KK_loss(logit)
+        #     custom_loss += additional_loss_term
         return custom_loss
 
     def make_e2_KK_loss(self, logit=None):
@@ -117,15 +118,16 @@ class Network(object):
         we_w_diff = (we_w[:, 1:] - we_w[:, :-1])
         dwe_dw = torch.div(we_w_diff, dw)
         diff = torch.abs(torch.min(dwe_dw[:, :]))
-        f = self.compare_spectra(Ypred=we_w[0, 1:].cpu().data.numpy(),
-                                 Ytruth=dwe_dw[0, :].cpu().data.numpy(), label_y1='w*e(w)', label_y2='d(w*e)/dw')
-        self.log.add_figure(tag='Sample ' + str(0) + ') derivative e2 Spectrum'.format(1),
-                            figure=f)
+        diff_scaled = diff/logit.shape[0]
+        # f = self.compare_spectra(Ypred=we_w[0, 1:].cpu().data.numpy(),
+        #                          Ytruth=dwe_dw[0, :].cpu().data.numpy(), label_y1='w*e(w)', label_y2='d(w*e)/dw')
+        # self.log.add_figure(tag='Sample ' + str(0) + ') derivative e2 Spectrum'.format(1),
+        #                     figure=f)
 
         # zero = torch.zeros(max.shape, requires_grad=False, dtype=torch.float32)
         # print(loss.shape)
         # print(diff)
-        return diff
+        return diff_scaled
 
     def make_optimizer(self):
         """
