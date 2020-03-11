@@ -57,7 +57,7 @@ class Forward(nn.Module):
         self.bn_linears = nn.ModuleList([])
         for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
             self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=None))
-            self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1]))
+            self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], affine=True))
 
         # Conv Layer definitions here
         self.convs = nn.ModuleList([])
@@ -134,9 +134,9 @@ class Forward(nn.Module):
             self.eps_inf = epsilon_inf.data.cpu().numpy()
 
             # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
-            w0 = torch.abs(w0.expand(out.size(0), self.num_lorentz, self.num_spec_point))
-            wp = torch.abs(wp.expand_as(w0))
-            g = torch.abs(g.expand_as(w0))
+            w0 = w0.expand(out.size(0), self.num_lorentz, self.num_spec_point)
+            wp = wp.expand_as(w0)
+            g = g.expand_as(w0)
             w_expand = self.w.expand_as(g)
             """
             Testing code
@@ -160,8 +160,8 @@ class Forward(nn.Module):
             # e2 = div(n2, denom)
 
             # # This is the version of more "machine" code that hard to understand but much more memory efficient
-            e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
-                     add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+            # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
+            #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
             e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
                      add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
             # # End line for the 2 versions of code that do the same thing, 1 for memory efficient but ugly
@@ -175,38 +175,38 @@ class Forward(nn.Module):
             print("size pf epsilon_inf", epsilon_inf.size())
             """
             # the correct calculation should be adding up the es
-            e1 = torch.sum(e1, 1)
+            # e1 = torch.sum(e1, 1)
             e2 = torch.sum(e2, 1)
 
-            epsilon_inf = epsilon_inf.unsqueeze(1).expand_as(e1)        #Change the shape of the epsilon_inf
-
-
-            e1 += epsilon_inf
-
-            # print("e1 size", e1.size())
-            # print("e2 size", e2.size())
-            e12 = pow(e1, 2)
-            e22 = pow(e2, 2)
-
-            n = sqrt(0.5 * add(sqrt(add(e12, e22)), e1))
-            k = sqrt(0.5 * add(sqrt(add(e12, e22)), -e1))
-            n_12 = pow(n+1, 2)
-            k2 = pow(k, 2)
-
-            # T without absorption
-            # T = div(4*n, add(n_12, k2)).float()
-
-
-            d, _ = torch.max(G[:, 4:], dim=1)
-            #print(d)
-            if self.flags.normalize_input:
-                d = d * (self.flags.geoboundary[-1]-self.flags.geoboundary[-2]) * 0.5 + (self.flags.geoboundary[-1]+self.flags.geoboundary[-2]) * 0.5
-            #print(d)
-            #print(d.size())
-            d = d.unsqueeze(1).expand_as(k)
-            #print(d.size())
-            ab = torch.exp(-0.0005 * 4 * math.pi * mul(d, k))
-            T_coeff = div(4*n, add(n_12, k2))
+            # epsilon_inf = epsilon_inf.unsqueeze(1).expand_as(e1)        #Change the shape of the epsilon_inf
+            #
+            #
+            # e1 += epsilon_inf
+            #
+            # # print("e1 size", e1.size())
+            # # print("e2 size", e2.size())
+            # e12 = pow(e1, 2)
+            # e22 = pow(e2, 2)
+            #
+            # n = sqrt(0.5 * add(sqrt(add(e12, e22)), e1))
+            # k = sqrt(0.5 * add(sqrt(add(e12, e22)), -e1))
+            # n_12 = pow(n+1, 2)
+            # k2 = pow(k, 2)
+            #
+            # # T without absorption
+            # # T = div(4*n, add(n_12, k2)).float()
+            #
+            #
+            # d, _ = torch.max(G[:, 4:], dim=1)
+            # #print(d)
+            # if self.flags.normalize_input:
+            #     d = d * (self.flags.geoboundary[-1]-self.flags.geoboundary[-2]) * 0.5 + (self.flags.geoboundary[-1]+self.flags.geoboundary[-2]) * 0.5
+            # #print(d)
+            # #print(d.size())
+            # d = d.unsqueeze(1).expand_as(k)
+            # #print(d.size())
+            # ab = torch.exp(-0.0005 * 4 * math.pi * mul(d, k))
+            # T_coeff = div(4*n, add(n_12, k2))
             # T = mul(T_coeff, ab).float()
             T = e2.float()
 

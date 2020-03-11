@@ -35,7 +35,7 @@ to get dominated by big/strong ones, and model plateaus nearest local min.
 ## To dos:
 1. Organize plotting and analysis functions into separate module
 2. Find best way to initialize params + best loss function (physics constrained)
-3. Pretrain on single spectrum
+3. Pretrain on single spectrum/transfer learning
 4. Lorentz activation functions
 
 
