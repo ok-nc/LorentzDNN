@@ -9,9 +9,10 @@ from sklearn.model_selection import train_test_split
 from datareader import MetaMaterialDataSet, read_data
 
 # Visualize our data
+import tkinter
 import matplotlib
-# matplotlib.use('qt4agg')
-matplotlib.use('Agg')
+matplotlib.use('qt4agg')
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -48,7 +49,7 @@ def MM_Geom(n):
 
     # Parameter bounds for metamaterial radius and height
     r_min = 20
-    r_max = 100
+    r_max = 200
     h_min = 20
     h_max = 100
 
@@ -64,7 +65,7 @@ def MM_Geom(n):
         np.random.shuffle(h_space)
         r[i] = r_space[0]
         h[i] = h_space[0]
-        return r, h
+    return r, h
 
 def Make_MM_Model(n):
 
@@ -111,7 +112,8 @@ def Read_Data_From_Files(dir):
 
 # Create random test data
 # w, e2 = Lorentzian(1, 2.5, 0.1)
-geom, spectra = Make_MM_Model(1)
+geom, spectra = Make_MM_Model(2)
+
 w = np.arange(0.5,5,4.5/300)
 # Visualize data
 plt.plot(w, spectra)

@@ -122,7 +122,7 @@ class Forward(nn.Module):
             else:
                 w0 = out[:, :, 0].unsqueeze(2) * 1      # This was set to 5 with sigmoid activation
             wp = out[:, :, 1].unsqueeze(2) * 1          # This was set to 5 with sigmoid activation
-            g = torch.sigmoid(out[:, :, 2].unsqueeze(2)) * 0.5        # This was set to 0.5 with sigmoid activation
+            g = out[:, :, 2].unsqueeze(2) * 0.1        # This was set to 0.5 with sigmoid activation
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()
