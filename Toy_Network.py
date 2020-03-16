@@ -11,7 +11,7 @@ from datareader import MetaMaterialDataSet, read_data
 # Visualize our data
 import tkinter
 import matplotlib
-matplotlib.use('qt4agg')
+matplotlib.use('qt5agg')
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -82,9 +82,7 @@ def Make_MM_Model(n):
 
 
 # Generates randomized dataset of simulated spectra for training and testing
-def Prepare_Data(osc, sets):
-
-    batch_size = 5
+def Prepare_Data(osc, sets, batch_size):
 
     features = []
     labels = []
@@ -100,15 +98,16 @@ def Prepare_Data(osc, sets):
 
     ftrsize = features.size/sets
     lblsize = labels.size/sets
-    print('There are %i datasets' % sets)
-    print('Size of Features is %i' % (ftrsize))
-    print('Size of Labels is %i' % (lblsize))
+    print('Size of Features is %i, Size of Labels is %i' % (ftrsize, lblsize))
+    print('There are %i datasets:' % sets)
 
     ftrTrain, ftrTest, lblTrain, lblTest = train_test_split(features, labels, test_size=0.2, random_state=1234)
     train_data = MetaMaterialDataSet(ftrTrain, lblTrain, bool_train= True)
     test_data = MetaMaterialDataSet(ftrTest, lblTest, bool_train= False)
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size)
+    print('Number of Training samples is {}'.format(len(ftrTrain)))
+    print('Number of Test samples is {}'.format(len(ftrTest)))
     return train_loader, test_loader
 
 # Read in training data from simulation files instead
@@ -129,7 +128,7 @@ def Read_Data_From_Files(dir):
 # Create random test data
 # w, e2 = Lorentzian(1, 2.5, 0.1)
 # geom, spectra = Make_MM_Model(2)
-test_loader, train_loader = Prepare_Data(2, 10)
+test_loader, train_loader = Prepare_Data(2, 10, 5)
 
 
 
