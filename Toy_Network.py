@@ -82,11 +82,27 @@ def Make_MM_Model(n):
 
 
 # Generates randomized dataset of simulated spectra for training and testing
-def Prepare_Data():
+def Prepare_Data(osc, sets):
 
-    batch_size = 1024
+    batch_size = 5
 
-    features, labels = None
+    features = []
+    labels = []
+
+    for i in range(sets):
+
+        geom, spectra = Make_MM_Model(osc)
+        features.append(geom)
+        labels.append(spectra)
+
+    features = np.array(features, dtype='float32')
+    labels = np.array(labels, dtype='float32')
+
+    ftrsize = features.size/sets
+    lblsize = labels.size/sets
+    print('There are %i datasets' % sets)
+    print('Size of Features is %i' % (ftrsize))
+    print('Size of Labels is %i' % (lblsize))
 
     ftrTrain, ftrTest, lblTrain, lblTest = train_test_split(features, labels, test_size=0.2, random_state=1234)
     train_data = MetaMaterialDataSet(ftrTrain, lblTrain, bool_train= True)
@@ -112,12 +128,15 @@ def Read_Data_From_Files(dir):
 
 # Create random test data
 # w, e2 = Lorentzian(1, 2.5, 0.1)
-geom, spectra = Make_MM_Model(2)
+# geom, spectra = Make_MM_Model(2)
+test_loader, train_loader = Prepare_Data(2, 10)
 
-w = np.arange(0.5,5,4.5/300)
+
+
+# w = np.arange(0.5,5,4.5/300)
 # Visualize data
-plt.plot(w, spectra)
-plt.show()
+# plt.plot(w, spectra)
+# plt.show()
 
 # # Convert numpy array to torch tensors
 # x = torch.from_numpy(x.reshape(-1,1)).float()
