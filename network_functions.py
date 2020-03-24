@@ -80,8 +80,8 @@ class Network(object):
         # Loss function to handle the gradients of the Lorentz layer
 
         # custom_loss = torch.abs(torch.mean((logit - labels)**2))
-        # custom_loss = nn.functional.mse_loss(logit, labels)
-        custom_loss = nn.functional.smooth_l1_loss(logit, labels)
+        custom_loss = nn.functional.mse_loss(logit, labels)
+        # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # logit_diff = logit[1:] - logit[:-1]
         # labels_diff = labels[1:] - labels[:-1]
         # derivative_loss = nn.functional.mse_loss(logit_diff, labels_diff)
@@ -136,10 +136,18 @@ class Network(object):
         """
         if self.flags.optim == 'Adam':
             op = torch.optim.Adam(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+        elif self.flags.optim == 'AdamW':
+            op = torch.optim.AdamW(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+        elif self.flags.optim == 'Adamax':
+            op = torch.optim.Adamax(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+        elif self.flags.optim == 'SparseAdam':
+            op = torch.optim.SparseAdam(self.model.parameters(), lr=self.flags.lr)
         elif self.flags.optim == 'RMSprop':
             op = torch.optim.RMSprop(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
         elif self.flags.optim == 'SGD':
             op = torch.optim.SGD(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale, momentum=0.9, nesterov=True)
+        elif self.flags.optim == 'LBFGS':
+            op = torch.optim.LBFGS(self.model.parameters(), lr=1, max_iter=20, history_size=100)
         else:
             raise Exception("Optimizer is not available at the moment.")
         return op
@@ -153,6 +161,8 @@ class Network(object):
         return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm, mode='min',
                                               factor=self.flags.lr_decay_rate,
                                               patience=10, verbose=True, threshold=1e-4)
+
+        # return lr_scheduler.CosineAnnealingWarmRestarts(optimizer=self.optm, T_0=150, T_mult=1)
 
     def save(self):
         """
@@ -168,7 +178,7 @@ class Network(object):
         """
         self.model = torch.load(os.path.join(self.ckpt_dir, 'best_model.pt'))
 
-    def record_weight(self, name, layer=-1, batch=999, epoch=999):
+    def record_weight(self, name='Weights', layer=-1, batch=999, epoch=999):
         """
         Record the weights for a specific layer to tensorboard (save to file if desired)
         :input: name: The name to save
@@ -193,7 +203,7 @@ class Network(object):
             f = self.plot_weights_3D(weights.reshape((sq, sq)), sq)
             self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Weights'.format(1), figure=f, global_step=epoch)
 
-    def record_grad(self, name, layer=-1, batch=999, epoch=999):
+    def record_grad(self, name='Gradients', layer=-1, batch=999, epoch=999):
         """
         Record the gradients for a specific layer to tensorboard (save to file if desired)
         :input: name: The name to save
@@ -201,6 +211,7 @@ class Network(object):
         """
         if batch == 0 and epoch > 0:
             gradients = self.model.linears[layer].weight.grad.cpu().data.numpy()
+
             # if epoch == 0:
             #     np.savetxt('Training_Gradients_Lorentz_Layer' + name,
             #                gradients, fmt='%.3f', delimiter=',')
@@ -248,10 +259,11 @@ class Network(object):
             self.model.train()
             for j, (geometry, spectra) in enumerate(self.train_loader):
                 # Record weights and gradients to tb
-                for ind in range(1):
-                # for ind, fc_num in enumerate(self.flags.linear):
-                    self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
-                    self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
+                if epoch % self.flags.record_step == 0:
+                    for ind in range(1):
+                    # for ind, fc_num in enumerate(self.flags.linear):
+                        self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
+                        self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
 
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
@@ -267,8 +279,11 @@ class Network(object):
                 loss = self.make_custom_loss(logit, spectra)
                 if j == 0 and epoch == 0:
                     im = make_dot(loss, params=dict(self.model.named_parameters())).render("Model Graph",
-                                                                                              format="png", directory=self.ckpt_dir)
-                loss.backward()                                         # Calculate the backward gradients
+                                                                                           format="png",
+                                                                                           directory=self.ckpt_dir)
+                loss.backward()
+
+                # Calculate the backward gradients
                 # self.record_weight(name='after_backward', batch=j, epoch=epoch)
 
                 # Clip gradients to help with training
@@ -310,11 +325,12 @@ class Network(object):
                     # self.log.add_histogram("wp_histogram", self.model.wps, epoch)
                     # self.log.add_histogram("g_histogram", self.model.gs, epoch)
 
-                for j in range(self.flags.num_plot_compare):
-                    f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
-                                             Ytruth=spectra[j, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample ' + str(j) +') e2 Spectrum'.format(1),
-                                        figure=f, global_step=epoch)
+                if epoch % self.flags.record_step == 0:
+                    for j in range(self.flags.num_plot_compare):
+                        f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
+                                                 Ytruth=spectra[j, :].cpu().data.numpy())
+                        self.log.add_figure(tag='Sample ' + str(j) +') e2 Spectrum'.format(1),
+                                            figure=f, global_step=epoch)
 
                 # f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
                 # self.log.add_figure(tag='Single Batch Training MSE Histogram'.format(1), figure=f2,

@@ -36,6 +36,7 @@ def read_flag():
     parser.add_argument('--freq-high', default=FREQ_HIGH, type=float, help='upper bound to frequency range')
     parser.add_argument('--batch-size', default=BATCH_SIZE, type=int, help='batch size (100)')
     parser.add_argument('--eval-step', default=EVAL_STEP, type=int, help='# steps between evaluations')
+    parser.add_argument('--record-step', default=RECORD_STEP, type=int, help='# steps between recording images to tb')
     parser.add_argument('--train-step', default=TRAIN_STEP, type=int, help='# steps to train on the dataSet')
     parser.add_argument('--lr', default=LEARN_RATE, type=float, help='learning rate')
 #    parser.add_argument('--decay-step', default=DECAY_STEP, type=int,

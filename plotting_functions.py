@@ -4,7 +4,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
-from models import evaluate_model
+# from models import evaluate_model
 import seaborn as sns; sns.set()
 import logging_functions
 from pandas.plotting import table
