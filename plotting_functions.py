@@ -11,31 +11,8 @@ from pandas.plotting import table
 from scipy.spatial import distance_matrix
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import minimum_spanning_tree
+import utils
 
-
-def RetrieveFeaturePredictionNMse(model_name):
-    """
-    Retrieve the Feature and Prediction values and place in a np array
-    :param model_name: the name of the model
-    return Xtruth, Xpred, Ytruth, Ypred
-    """
-    # Retrieve the prediction and truth and prediction first
-    feature_file = os.path.join('data', 'test_Xtruth_{}.csv'.format(model_name))
-    pred_file = os.path.join('data', 'test_Ypred_{}.csv'.format(model_name))
-    truth_file = os.path.join('data', 'test_Ytruth_{}.csv'.format(model_name))
-    feat_file = os.path.join('data', 'test_Xpred_{}.csv'.format(model_name))
-
-    # Getting the files from file name
-    Xtruth = pd.read_csv(feature_file,header=None, delimiter=' ')
-    Xpred = pd.read_csv(feat_file,header=None, delimiter=' ')
-    Ytruth = pd.read_csv(truth_file,header=None, delimiter=' ')
-    Ypred = pd.read_csv(pred_file,header=None, delimiter=' ')
-    
-    #retrieve mse, mae
-    Ymae, Ymse = evaluate_model.compare_truth_pred(pred_file, truth_file) #get the maes of y
-    
-    print(Xtruth.shape)
-    return Xtruth.values, Xpred.values, Ytruth.values, Ypred.values, Ymae, Ymse
 
 def ImportColorBarLib():
     """
@@ -50,75 +27,6 @@ def UniqueMarkers():
     import itertools
     markers = itertools.cycle(( 'x','1','+', '.', '*','D','v','h'))
     return markers
-  
-def SpectrumComparisonNGeometryComparison(rownum, colnum, Figsize, model_name, boundary = [-1,1,-1,1]):
-    """
-    Read the Prediction files and plot the spectra comparison plots
-    :param SubplotArray: 2x2 array indicating the arrangement of the subplots
-    :param Figsize: the size of the figure
-    :param Figname: the name of the figures to save
-    :param model_name: model name (typically a list of numebr containing date and time)
-    """
-    mpl = ImportColorBarLib()    #import lib
-    
-    Xtruth, Xpred, Ytruth, Ypred, Ymae, Ymse =  RetrieveFeaturePredictionNMse(model_name)  #retrieve features
-    print("Ymse shape:",Ymse.shape)
-    print("Xpred shape:", Xpred.shape)
-    print("Xtrth shape:", Xtruth.shape)
-    #Plotting the spectrum comaprison
-    f = plt.figure(figsize=Figsize)
-    fignum = rownum * colnum
-    for i in range(fignum):
-      ax = plt.subplot(rownum, colnum, i+1)
-      plt.ylabel('Transmission rate')
-      plt.xlabel('frequency')
-      plt.plot(Ytruth[i], label = 'Truth',linestyle = '--')
-      plt.plot(Ypred[i], label = 'Prediction',linestyle = '-')
-      plt.legend()
-      plt.ylim([0,1])
-    f.savefig('Spectrum Comparison_{}'.format(model_name))
-    
-    """
-    Plotting the geometry comparsion, there are fignum points in each plot
-    each representing a data point with a unique marker
-    8 dimension therefore 4 plots, 2x2 arrangement
-    
-    """
-    #for j in range(fignum):
-    pointnum = fignum #change #fig to #points in comparison
-    
-    f = plt.figure(figsize = Figsize)
-    ax0 = plt.gca()
-    for i in range(4):
-      truthmarkers = UniqueMarkers() #Get some unique markers
-      predmarkers = UniqueMarkers() #Get some unique markers
-      ax = plt.subplot(2, 2, i+1)
-      #plt.xlim([29,56]) #setting the heights limit, abandoned because sometime can't see prediciton
-      #plt.ylim([41,53]) #setting the radius limits
-      for j in range(pointnum):
-        #Since the colored scatter only takes 2+ arguments, plot 2 same points to circumvent this problem
-        predArr = [[Xpred[j, i], Xpred[j, i]] ,[Xpred[j, i + 4], Xpred[j, i + 4]]]
-        predC = [Ymse[j], Ymse[j]]
-        truthplot = plt.scatter(Xtruth[j,i],Xtruth[j,i+4],label = 'Xtruth{}'.format(j),
-                                marker = next(truthmarkers),c = 'm',s = 40)
-        predplot  = plt.scatter(predArr[0],predArr[1],label = 'Xpred{}'.format(j),
-                                c =predC ,cmap = 'jet',marker = next(predmarkers), s = 60)
-      
-      plt.xlabel('h{}'.format(i))
-      plt.ylabel('r{}'.format(i))
-      rect = mpl.patches.Rectangle((boundary[0],boundary[2]),boundary[1] - boundary[0], boundary[3] - boundary[2],
-																		linewidth=1,edgecolor='r',
-                                   facecolor='none',linestyle = '--',label = 'data region')
-      ax.add_patch(rect)
-      plt.autoscale()
-      plt.legend(bbox_to_anchor=(0., 1.02, 1., .102),
-                 mode="expand",ncol = 6, prop={'size': 5})#, bbox_to_anchor=(1,0.5))
-    
-    cb_ax = f.add_axes([0.93, 0.1, 0.02, 0.8])
-    cbar = f.colorbar(predplot, cax=cb_ax)
-    #f.colorbar(predplot)
-    f.savefig('Geometry Comparison_{}'.format(model_name))
-
 
 class HMpoint(object):
     """
@@ -259,60 +167,6 @@ def HeatMapBVL(plot_x_name, plot_y_name, title,  save_name='HeatMap.png', HeatMa
     plt.title(title)
     plt.savefig(save_name)
 
-
-def PlotPossibleGeoSpace(figname, Xpred_dir, compare_original = False,calculate_diversity = None):
-    """
-    Function to plot the possible geometry space for a model evaluation result.
-    It reads from Xpred_dir folder and finds the Xpred result insdie and plot that result
-    :params figname: The name of the figure to save
-    :params Xpred_dir: The directory to look for Xpred file which is the source of plotting
-    :output A plot containing 4 subplots showing the 8 geomoetry dimensions
-    """
-    Xpredfile = logging_functions.get_Xpred(Xpred_dir)
-    Xpred = pd.read_csv(Xpredfile, header=None, delimiter=' ').values
-    
-    Xtruthfile = logging_functions.get_Xtruth(Xpred_dir)
-    Xtruth = pd.read_csv(Xtruthfile, header=None, delimiter=' ').values
-
-    f = plt.figure()
-    ax0 = plt.gca()
-    print(np.shape(Xpred))
-    #print(Xpred)
-    #plt.title(figname)
-    if (calculate_diversity == 'MST'):
-        diversity_Xpred, diversity_Xtruth = calculate_MST(Xpred, Xtruth)
-    elif (calculate_diversity == 'AREA'):
-        diversity_Xpred, diversity_Xtruth = calculate_AREA(Xpred, Xtruth)
-
-    for i in range(4):
-      ax = plt.subplot(2, 2, i+1)
-      ax.scatter(Xpred[:,i], Xpred[:,i + 4],s = 3,label = "Xpred")
-      if (compare_original):
-          ax.scatter(Xtruth[:,i], Xtruth[:,i+4],s = 3, label = "Xtruth")
-      plt.xlabel('h{}'.format(i))
-      plt.ylabel('r{}'.format(i))
-      plt.xlim(-1,1)
-      plt.ylim(-1,1)
-      plt.legend()
-    if (calculate_diversity != None):
-        plt.text(-4, 3.5,'Div_Xpred = {}, Div_Xtruth = {}, under criteria {}'.format(diversity_Xpred, diversity_Xtruth, calculate_diversity), zorder = 1)
-    plt.suptitle(figname)
-    f.savefig(figname+'.png')
-
-def PlotPairwiseGeometry(figname, Xpred_dir):
-    """
-    Function to plot the pair-wise scattering plot of the geometery file to show
-    the correlation between the geometry that the network learns
-    """
-    
-    Xpredfile = logging_functions.get_Xpred(Xpred_dir)
-    Xpred = pd.read_csv(Xpredfile, header=None, delimiter=' ')
-    f=plt.figure()
-    axes = pd.plotting.scatter_matrix(Xpred, alpha = 0.2)
-    #plt.tight_layout()
-    plt.title("Pair-wise scattering of Geometery predictions")
-    plt.savefig(figname)
-
 def calculate_AREA(Xpred, Xtruth):
     """
     Function to calculate the area for both Xpred and Xtruth under using the segmentation of 0.01
@@ -361,4 +215,17 @@ def get_bvl(file_path):
         print("Error! We did not found a bvl in .txt.file")
     else:
         return float(bvl)
+
+
+def plot_loss_folder_comparison():
+    dirs = utils.getExistingDirectories()
+    if dirs.exec_() == utils.QDialog.Accepted:
+        folder_paths = dirs.selectedFiles()
+        folder_names = [value.split('/')[-1] for c, value in enumerate(folder_paths)]
+        # losses = np.empty((len(folder_names)))
+        for i in range(len(folder_names)):
+            file_path = folder_paths[i] + '/parameters.txt'
+            loss = get_bvl(file_path)
+            print(loss)
+
 
