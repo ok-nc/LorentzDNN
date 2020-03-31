@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -12,6 +13,8 @@ from scipy.spatial import distance_matrix
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import minimum_spanning_tree
 import utils
+from PyQt5.QtWidgets import (QFileDialog, QAbstractItemView, QListView,
+                             QTreeView, QApplication, QDialog)
 
 
 def ImportColorBarLib():
@@ -218,14 +221,43 @@ def get_bvl(file_path):
 
 
 def plot_loss_folder_comparison():
+    qapp = QApplication(sys.argv)
     dirs = utils.getExistingDirectories()
     if dirs.exec_() == utils.QDialog.Accepted:
         folder_paths = dirs.selectedFiles()
         folder_names = [value.split('/')[-1] for c, value in enumerate(folder_paths)]
         # losses = np.empty((len(folder_names)))
+        df = pd.DataFrame(columns=['Loss','Model'])
+
         for i in range(len(folder_names)):
             file_path = folder_paths[i] + '/parameters.txt'
             loss = get_bvl(file_path)
-            print(loss)
+            model = '_'.join(folder_names[i].split('_')[:-1])
+            df = df.append({'Loss': loss, 'Model': model}, ignore_index=True)
 
+        # curr_col = '_'.join(folder_names[0].split('_')[:-1])
+        # loss = get_bvl(folder_paths[0] + '/parameters.txt')
+        # data = np.array(loss)
+        # for i in range(1,len(folder_names)):
+        #     file_path = folder_paths[i] + '/parameters.txt'
+        #     if (curr_col != '_'.join(folder_names[i].split('_')[:-1])):
+        #         col = '_'.join(folder_names[i-1].split('_')[:-1])
+        #         df[col] = pd.Series(data)
+        #         loss = get_bvl(file_path)
+        #         data = np.array(loss)
+        #         curr_col = '_'.join(folder_names[i].split('_')[:-1])
+        #     else:
+        #         loss = get_bvl(file_path)
+        #         data = np.append(data, loss)
+        #
+        # col = '_'.join(folder_names[-1].split('_')[:-1])
+        # df[col] = pd.Series(data)
 
+        # return df
+        # plt.switch_backend('Agg')
+        sns.set(style="whitegrid", color_codes=True)
+        ax = sns.swarmplot(x="Model", y="Loss", data=df)
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+        ax.set_title('Validation Loss Comparison', fontsize=14)
+        # print(matplotlib.get_backend())
+        return ax
