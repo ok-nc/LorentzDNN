@@ -47,6 +47,10 @@ def read_flag():
                         help='The threshold below which training should stop')
     parser.add_argument('--grad_clip', default=GRAD_CLIP, type=float,
                         help='Gradient clipping value')
+    parser.add_argument('--use-warm-restart', default=USE_WARM_RESTART, type=bool,
+                        help='Use warm restart learning rate scheduling')
+    parser.add_argument('--lr-warm-restart', default=LR_WARM_RESTART, type=int, help='# steps before warm restart')
+    parser.add_argument('--err-exp', default=ERR_EXP, type=int, help='# error exponent for regularization')
 
     # Data specific Params
     parser.add_argument('--geoboundary', default=GEOBOUNDARY, type=tuple, help='the boundary of the geometric data')

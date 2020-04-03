@@ -79,8 +79,9 @@ class Network(object):
 
         # Loss function to handle the gradients of the Lorentz layer
 
-        # custom_loss = torch.abs(torch.mean((logit - labels)**2))
-        custom_loss = nn.functional.mse_loss(logit, labels)
+        # custom_loss = torch.mean(torch.mean((logit - labels)**self.flags.err_exp, 1))
+        # custom_loss = torch.mean(torch.norm((logit-labels),p=4))/logit.shape[0]
+        custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
         # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # logit_diff = logit[1:] - logit[:-1]
         # labels_diff = labels[1:] - labels[:-1]
@@ -158,11 +159,15 @@ class Network(object):
         1. ReduceLROnPlateau (decrease lr when validation error stops improving
         :return:
         """
-        return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm, mode='min',
-                                              factor=self.flags.lr_decay_rate,
+        if self.flags.use_warm_restart:
+            return lr_scheduler.CosineAnnealingWarmRestarts(optimizer=self.optm,
+                                                            T_0=self.flags.lr_warm_restart, T_mult=1)
+        else:
+            return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm, mode='min',
+                                            factor=self.flags.lr_decay_rate,
                                               patience=10, verbose=True, threshold=1e-4)
 
-        # return lr_scheduler.CosineAnnealingWarmRestarts(optimizer=self.optm, T_0=150, T_mult=1)
+
 
     def save(self):
         """
@@ -332,10 +337,6 @@ class Network(object):
                         self.log.add_figure(tag='Sample ' + str(j) +') e2 Spectrum'.format(1),
                                             figure=f, global_step=epoch)
 
-                # f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
-                # self.log.add_figure(tag='Single Batch Training MSE Histogram'.format(1), figure=f2,
-                #                     global_step=epoch)
-
                 # Set to Evaluation Mode
                 self.model.eval()
                 print("Doing Evaluation on the model now")
@@ -349,7 +350,14 @@ class Network(object):
                     loss = self.make_custom_loss(logit, spectra)
                     test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
 
+                    if j == 0 and epoch % self.flags.record_step == 0:
+                        # f2 = self.plotMSELossDistrib(test_loss)
+                        f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
+                        self.log.add_figure(tag='Testing Loss Histogram'.format(1), figure=f2,
+                                            global_step=epoch)
+
                 # Record the testing loss to the tensorboard
+
                 test_avg_loss = np.mean(test_loss)
                 self.log.add_scalar('Loss/test', test_avg_loss, epoch)
 
@@ -370,115 +378,116 @@ class Network(object):
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_eval_mode_loss)
 
+        print('Finished')
         self.log.close()
 
-    def pretrain(self, pretrain_loader, pretest_loader):
-        """
-        The pretraining function. This starts the pretraining using parameters given in the flags
-        :return: None
-        """
-        cuda = True if torch.cuda.is_available() else False
-        if cuda:
-            self.model.cuda()
-
-        # Construct optimizer after the model moved to GPU
-        self.optm = self.make_optimizer()
-        self.lr_scheduler = self.make_lr_scheduler()
-
-        # Start a tensorboard session for logging loss and training images
-        tb = program.TensorBoard()
-        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
-        url = tb.launch()
-
-        print("Starting pre-training process")
-        for epoch in range(200):                                    # Only 200 epochs needed for pretraining
-            # print("This is pretrainin Epoch {}".format(epoch))
-            # Set to Training Mode
-            train_loss = []
-            train_loss_eval_mode_list = []
-            self.model.train()
-            for j, (geometry, lor_params) in enumerate(pretrain_loader):
-                # Record weights and gradients to tb
-                self.record_weight(name='Pretraining', batch=j, epoch=epoch)
-                self.record_grad(name='Pretraining', batch=j, epoch=epoch)
-                if cuda:
-                    geometry = geometry.cuda()                          # Put data onto GPU
-                    lor_params = lor_params.cuda()                      # Put data onto GPU
-                self.optm.zero_grad()                                   # Zero the gradient first
-                logit, last_Lor_layer = self.model(geometry)            # Get the output
-                # print("label size:", lor_params.size())
-                # print("logit size:", last_Lor_layer.size())
-
-                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])       # Get the loss tensor
-                pretrain_loss.backward()                                # Calculate the backward gradients
-                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
-                self.optm.step()                                        # Move one step the optimizer
-                train_loss.append(np.copy(pretrain_loss.cpu().data.numpy()))                # Aggregate the loss
-
-                #############################################
-                # Extra test for err_test < err_train issue #
-                #############################################
-                self.model.eval()
-                logit, last_Lor_layer = self.model(geometry)  # Get the output
-                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])  # Get the loss tensor
-                train_loss_eval_mode_list.append(np.copy(pretrain_loss.cpu().data.numpy()))
-                self.model.train()
-
-            # Calculate the avg loss of training
-            train_avg_loss = np.mean(train_loss)
-            train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
-
-            if epoch % 20 == 0:            # Evaluate every 20 steps
-                # Record the training loss to the tensorboard
-                #train_avg_loss = train_loss.data.numpy() / (j+1)
-                self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
-                self.log.add_scalar('Pretrain Loss/ Evaluation Mode', train_avg_eval_mode_loss, epoch)
-
-                for j in range(self.flags.num_plot_compare):
-                    f = self.compare_Lor_params(pred=last_Lor_layer[j, :].cpu().data.numpy(),
-                                             truth=lor_params[j, :12].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.
-                                        format(1), figure=f, global_step=epoch)
-
-                # Pretraining files contain both Lorentz parameters and simulated model spectra
-                pretrain_sim_prediction = lor_params[:, 12:]
-                pretrain_model_prediction = Lorentz_layer(last_Lor_layer)
-
-                for j in range(self.flags.num_plot_compare):
-
-                    f = self.compare_spectra(Ypred=pretrain_model_prediction[j, :].cpu().data.numpy(),
-                                             Ytruth=pretrain_sim_prediction[j, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Model ' + str(j) +') e2 Prediction'.format(1),
-                                        figure=f, global_step=epoch)
-
-                # f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
-                # self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
-                #                     global_step=epoch)
-
-                print("This is Epoch %d, pretraining loss %.5f" % (epoch, train_avg_eval_mode_loss ))
-
-                # Model improving, save the model
-                if train_avg_eval_mode_loss < self.best_pretrain_loss:
-                    self.best_pretrain_loss = train_avg_loss
-                    self.save()
-                    print("Saving the model...")
-
-                    if self.best_pretrain_loss < self.flags.stop_threshold:
-                        print("Pretraining finished EARLIER at epoch %d, reaching loss of %.5f" %\
-                              (epoch, self.best_pretrain_loss))
-                        return None
-
-            # Learning rate decay upon plateau
-            self.lr_scheduler.step(train_avg_eval_mode_loss)
-
-            # Save pretrained model at end
-            if epoch == 199:
-                # weights = self.model.linears[-1].weight.cpu().data.numpy()
-                # # print(weights.shape)
-                # np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
-                torch.save(self.model, os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
-
-        self.log.close()
+    # def pretrain(self, pretrain_loader, pretest_loader):
+    #     """
+    #     The pretraining function. This starts the pretraining using parameters given in the flags
+    #     :return: None
+    #     """
+    #     cuda = True if torch.cuda.is_available() else False
+    #     if cuda:
+    #         self.model.cuda()
+    #
+    #     # Construct optimizer after the model moved to GPU
+    #     self.optm = self.make_optimizer()
+    #     self.lr_scheduler = self.make_lr_scheduler()
+    #
+    #     # Start a tensorboard session for logging loss and training images
+    #     tb = program.TensorBoard()
+    #     tb.configure(argv=[None, '--logdir', self.ckpt_dir])
+    #     url = tb.launch()
+    #
+    #     print("Starting pre-training process")
+    #     for epoch in range(200):                                    # Only 200 epochs needed for pretraining
+    #         # print("This is pretrainin Epoch {}".format(epoch))
+    #         # Set to Training Mode
+    #         train_loss = []
+    #         train_loss_eval_mode_list = []
+    #         self.model.train()
+    #         for j, (geometry, lor_params) in enumerate(pretrain_loader):
+    #             # Record weights and gradients to tb
+    #             self.record_weight(name='Pretraining', batch=j, epoch=epoch)
+    #             self.record_grad(name='Pretraining', batch=j, epoch=epoch)
+    #             if cuda:
+    #                 geometry = geometry.cuda()                          # Put data onto GPU
+    #                 lor_params = lor_params.cuda()                      # Put data onto GPU
+    #             self.optm.zero_grad()                                   # Zero the gradient first
+    #             logit, last_Lor_layer = self.model(geometry)            # Get the output
+    #             # print("label size:", lor_params.size())
+    #             # print("logit size:", last_Lor_layer.size())
+    #
+    #             pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])       # Get the loss tensor
+    #             pretrain_loss.backward()                                # Calculate the backward gradients
+    #             # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
+    #             self.optm.step()                                        # Move one step the optimizer
+    #             train_loss.append(np.copy(pretrain_loss.cpu().data.numpy()))                # Aggregate the loss
+    #
+    #             #############################################
+    #             # Extra test for err_test < err_train issue #
+    #             #############################################
+    #             self.model.eval()
+    #             logit, last_Lor_layer = self.model(geometry)  # Get the output
+    #             pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])  # Get the loss tensor
+    #             train_loss_eval_mode_list.append(np.copy(pretrain_loss.cpu().data.numpy()))
+    #             self.model.train()
+    #
+    #         # Calculate the avg loss of training
+    #         train_avg_loss = np.mean(train_loss)
+    #         train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
+    #
+    #         if epoch % 20 == 0:            # Evaluate every 20 steps
+    #             # Record the training loss to the tensorboard
+    #             #train_avg_loss = train_loss.data.numpy() / (j+1)
+    #             self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
+    #             self.log.add_scalar('Pretrain Loss/ Evaluation Mode', train_avg_eval_mode_loss, epoch)
+    #
+    #             for j in range(self.flags.num_plot_compare):
+    #                 f = self.compare_Lor_params(pred=last_Lor_layer[j, :].cpu().data.numpy(),
+    #                                          truth=lor_params[j, :12].cpu().data.numpy())
+    #                 self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.
+    #                                     format(1), figure=f, global_step=epoch)
+    #
+    #             # Pretraining files contain both Lorentz parameters and simulated model spectra
+    #             pretrain_sim_prediction = lor_params[:, 12:]
+    #             pretrain_model_prediction = Lorentz_layer(last_Lor_layer)
+    #
+    #             for j in range(self.flags.num_plot_compare):
+    #
+    #                 f = self.compare_spectra(Ypred=pretrain_model_prediction[j, :].cpu().data.numpy(),
+    #                                          Ytruth=pretrain_sim_prediction[j, :].cpu().data.numpy())
+    #                 self.log.add_figure(tag='Model ' + str(j) +') e2 Prediction'.format(1),
+    #                                     figure=f, global_step=epoch)
+    #
+    #             # f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
+    #             # self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
+    #             #                     global_step=epoch)
+    #
+    #             print("This is Epoch %d, pretraining loss %.5f" % (epoch, train_avg_eval_mode_loss ))
+    #
+    #             # Model improving, save the model
+    #             if train_avg_eval_mode_loss < self.best_pretrain_loss:
+    #                 self.best_pretrain_loss = train_avg_loss
+    #                 self.save()
+    #                 print("Saving the model...")
+    #
+    #                 if self.best_pretrain_loss < self.flags.stop_threshold:
+    #                     print("Pretraining finished EARLIER at epoch %d, reaching loss of %.5f" %\
+    #                           (epoch, self.best_pretrain_loss))
+    #                     return None
+    #
+    #         # Learning rate decay upon plateau
+    #         self.lr_scheduler.step(train_avg_eval_mode_loss)
+    #
+    #         # Save pretrained model at end
+    #         if epoch == 199:
+    #             # weights = self.model.linears[-1].weight.cpu().data.numpy()
+    #             # # print(weights.shape)
+    #             # np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
+    #             torch.save(self.model, os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
+    #
+    #     self.log.close()
 
     def evaluate(self, save_dir='data/'):
         self.load()                             # load the model as constructed
@@ -579,10 +588,10 @@ class Network(object):
         # mae, mse = compare_truth_pred(pred_file, truth_file)
         # mae = np.mean(np.abs(pred - truth), axis=1)
         mse = np.mean(np.square(pred - truth), axis=1)
-
+        # mse = loss
         f = plt.figure(figsize=(12, 6))
         plt.hist(mse, bins=100)
-        plt.xlabel('Mean Squared Error')
+        plt.xlabel('Validation Loss')
         plt.ylabel('Count')
         plt.suptitle('Model (Avg MSE={:.4e})'.format(np.mean(mse)))
         # plt.savefig(os.path.join(os.path.abspath(''), 'models',

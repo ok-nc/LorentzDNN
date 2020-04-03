@@ -11,9 +11,9 @@ class getExistingDirectories(QFileDialog):
         self.findChildren(QListView)[0].setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.findChildren(QTreeView)[0].setSelectionMode(QAbstractItemView.ExtendedSelection)
 
-# qapp = QApplication(sys.argv)
-# dlg = getExistingDirectories()
-# if dlg.exec_() == QDialog.Accepted:
-#     print(dlg.selectedFiles())
+qapp = QApplication(sys.argv)
+dlg = getExistingDirectories()
+if dlg.exec_() == QDialog.Accepted:
+    print(dlg.selectedFiles())
 
 

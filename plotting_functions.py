@@ -222,6 +222,7 @@ def get_bvl(file_path):
 
 def plot_loss_folder_comparison():
     qapp = QApplication(sys.argv)
+    print('Get Directories now')
     dirs = utils.getExistingDirectories()
     if dirs.exec_() == utils.QDialog.Accepted:
         folder_paths = dirs.selectedFiles()
@@ -232,9 +233,10 @@ def plot_loss_folder_comparison():
         for i in range(len(folder_names)):
             file_path = folder_paths[i] + '/parameters.txt'
             loss = get_bvl(file_path)
-            model = '_'.join(folder_names[i].split('_')[:-1])
+            model = '_'.join(folder_names[i].split('_')[1:-1])
             df = df.append({'Loss': loss, 'Model': model}, ignore_index=True)
 
+        # print(df)
         # curr_col = '_'.join(folder_names[0].split('_')[:-1])
         # loss = get_bvl(folder_paths[0] + '/parameters.txt')
         # data = np.array(loss)
@@ -254,10 +256,19 @@ def plot_loss_folder_comparison():
         # df[col] = pd.Series(data)
 
         # return df
-        # plt.switch_backend('Agg')
+        plt.switch_backend('Qt5Agg')
+        fig, ax = plt.subplots(num=2, figsize=(10,5))
+
         sns.set(style="whitegrid", color_codes=True)
         ax = sns.swarmplot(x="Model", y="Loss", data=df)
         ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
         ax.set_title('Validation Loss Comparison', fontsize=14)
         # print(matplotlib.get_backend())
-        return ax
+        # plt.tight_layout()
+        plt.figure(num=2)
+        plt.show()
+
+        plt.savefig('C:/Users/labuser/mlmOK_Pytorch/Loss_Comparison.png', bbox_inches='tight')
+        # plt.savefig('C:/Users/labuser/mlmOK_Pytorch/Loss_Comparison.png')
+
+        return df

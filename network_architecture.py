@@ -30,6 +30,7 @@ class Forward(nn.Module):
             flags.linear[-1] += 1
 
             self.num_spec_point = 300
+
             assert (flags.linear[-1] - 1) % 3 == 0, "Please make sure your last layer in linear is\
                                                         multiple of 3 (+1) since you are using lorentzian"
             # Set the number of lorentz oscillator
@@ -56,7 +57,7 @@ class Forward(nn.Module):
         self.linears = nn.ModuleList([])
         self.bn_linears = nn.ModuleList([])
         for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
-            self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=None))
+            self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
             self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], affine=True))
 
         # Conv Layer definitions here
@@ -122,7 +123,7 @@ class Forward(nn.Module):
             else:
                 w0 = out[:, :, 0].unsqueeze(2) * 1      # This was set to 5 with sigmoid activation
             wp = out[:, :, 1].unsqueeze(2) * 1          # This was set to 5 with sigmoid activation
-            g = out[:, :, 2].unsqueeze(2) * 0.1        # This was set to 0.5 with sigmoid activation
+            g = out[:, :, 2].unsqueeze(2) * 0.1         # This was set to 0.5 with sigmoid activation
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()
