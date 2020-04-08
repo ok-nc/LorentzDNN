@@ -33,6 +33,14 @@ results in good but not great fits (0.6-1 MSE). Has trouble fitting smaller/narr
 to get dominated by big/strong ones, and model plateaus nearest local min. 
 
 ## To dos:
+
+Short term
+- update/fix model evaluation/inference mode (including torch.no_grad)
+- save histogram for each training session at end in model folder (both full and fixed scale)
+- try concatenated inputs for lorentz layer
+
+
+Longer term
 1. Organize plotting and analysis functions into separate module
 2. Find best way to initialize params + best loss function (physics constrained)
 3. Pretrain on single spectrum/transfer learning

@@ -60,6 +60,8 @@ class Forward(nn.Module):
             self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
             self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], affine=True))
 
+
+
         # Conv Layer definitions here
         self.convs = nn.ModuleList([])
         in_channel = 1                                                  # Initialize the in_channel number
@@ -96,7 +98,8 @@ class Forward(nn.Module):
                 out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
             else:
                 out = bn(fc(out))
-            #print(out.size())
+
+            # print(out.size())
             # out = torch.sigmoid(out)
             # last_Lor_layer = out
             # return last_Lor_layer, last_Lor_layer
@@ -270,8 +273,8 @@ def Lorentz_layer(Lorentz_params):
     Lorentz_params = Lorentz_params.view([-1, int(Lorentz_params.size(1) / 3), 3])
 
     # Get the list of params for lorentz, also add one extra dimension at 3rd one to0
-    w0 = Lorentz_params[:, :, 0].unsqueeze(2) * 5
-    wp = Lorentz_params[:, :, 1].unsqueeze(2) * 5
+    w0 = Lorentz_params[:, :, 0].unsqueeze(2) * 20
+    wp = Lorentz_params[:, :, 1].unsqueeze(2) * 20
     g = Lorentz_params[:, :, 2].unsqueeze(2) * 0.5
     # nn.init.xavier_uniform_(g)
     # This is for debugging purpose (Very slow), recording the output tensors
@@ -310,8 +313,8 @@ def Lorentz_layer(Lorentz_params):
     # e2 = div(n2, denom)
 
     # # This is the version of more "machine" code that hard to understand but much more memory efficient
-    e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
-             add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+    # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
+    #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
     e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
              add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
     # # End line for the 2 versions of code that do the same thing, 1 for memory efficient but ugly
@@ -325,22 +328,22 @@ def Lorentz_layer(Lorentz_params):
     print("size pf epsilon_inf", epsilon_inf.size())
     """
     # the correct calculation should be adding up the es
-    e1 = torch.sum(e1, 1)
+    # e1 = torch.sum(e1, 1)
     e2 = torch.sum(e2, 1)
 
-    epsilon_inf = epsilon_inf.unsqueeze(1).expand_as(e1)  # Change the shape of the epsilon_inf
+    # epsilon_inf = epsilon_inf.unsqueeze(1).expand_as(e1)  # Change the shape of the epsilon_inf
 
-    e1 += epsilon_inf
-
-    # print("e1 size", e1.size())
-    # print("e2 size", e2.size())
-    e12 = pow(e1, 2)
-    e22 = pow(e2, 2)
-
-    n = sqrt(0.5 * add(sqrt(add(e12, e22)), e1))
-    k = sqrt(0.5 * add(sqrt(add(e12, e22)), -e1))
-    n_12 = pow(n + 1, 2)
-    k2 = pow(k, 2)
+    # e1 += epsilon_inf
+    #
+    # # print("e1 size", e1.size())
+    # # print("e2 size", e2.size())
+    # e12 = pow(e1, 2)
+    # e22 = pow(e2, 2)
+    #
+    # n = sqrt(0.5 * add(sqrt(add(e12, e22)), e1))
+    # k = sqrt(0.5 * add(sqrt(add(e12, e22)), -e1))
+    # n_12 = pow(n + 1, 2)
+    # k2 = pow(k, 2)
 
     # T without absorption
     # T = div(4*n, add(n_12, k2)).float()

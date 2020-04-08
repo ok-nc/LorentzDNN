@@ -3,7 +3,7 @@ This file serves as a training interface for training the network
 """
 # Built in
 import os
-
+from sys import exit
 # Other custom network modules
 import flagreader
 import datareader
@@ -26,7 +26,7 @@ def training_from_flag(flags):
     if flags.use_cpu_only:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-    # Import the data
+    # # Import the data
     train_loader, test_loader = datareader.read_data(x_range=flags.x_range,
                                                      y_range=flags.y_range,
                                                      geoboundary=flags.geoboundary,
@@ -35,7 +35,7 @@ def training_from_flag(flags):
                                                      data_dir=flags.data_dir,
                                                      test_ratio=flags.test_ratio,pre_train=False)
 
-    # Import the pretraining data separately (no test data)
+    # # Import the pretraining data separately (no test data)
     # pretrain_loader, pretest_loader = datareader.read_data(x_range=flags.x_range,
     #                                                  y_range=[i for i in range(8, 320)],
     #                                                  geoboundary=flags.geoboundary,
@@ -56,7 +56,7 @@ def training_from_flag(flags):
 
     # Training process
     print("Start training now...")
-    #ntwk.pretrain(pretrain_loader, pretest_loader)
+    # ntwk.pretrain(pretrain_loader, pretest_loader)
     ntwk.train()
 
     # Do the house keeping, write the parameters and put into folder, also use pickle to save the flags object
