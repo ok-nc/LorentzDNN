@@ -105,7 +105,7 @@ class Forward(nn.Module):
             # return last_Lor_layer, last_Lor_layer
         # If use lorentzian layer, pass this output to the lorentzian layer
         if self.use_lorentz:
-            #last_Lor_layer = out[:, :-1]
+            # last_Lor_layer = out[:, :-1]
             # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
             # out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
             out = F.relu(out) + 0.00001
@@ -124,9 +124,9 @@ class Forward(nn.Module):
             if self.fix_w0:
                 w0 = self.w0.unsqueeze(0).unsqueeze(2)
             else:
-                w0 = out[:, :, 0].unsqueeze(2) * 1      # This was set to 5 with sigmoid activation
-            wp = out[:, :, 1].unsqueeze(2) * 1          # This was set to 5 with sigmoid activation
-            g = out[:, :, 2].unsqueeze(2) * 0.1         # This was set to 0.5 with sigmoid activation
+                w0 = out[:, :, 0].unsqueeze(2)       # This was set to 5 with sigmoid activation
+            wp = out[:, :, 1].unsqueeze(2)         # This was set to 5 with sigmoid activation
+            g = out[:, :, 2].unsqueeze(2)          # This was set to 0.5 with sigmoid activation
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()
@@ -148,26 +148,26 @@ class Forward(nn.Module):
             #print("w0 size", w0.size())
             End of testing module
             """
-            # # Get the powers first
-            # w02 = pow(w0, 2)
-            # wp2 = pow(wp, 2)
-            # w2 = pow(w_expand, 2)
-            # g2 = pow(g, 2)
-            #
-            # # Start calculating
-            # s1 = add(w02, -w2)
-            # s12= pow(s1, 2)
-            # n1 = mul(wp2, s1)
-            # n2 = mul(wp2, mul(w_expand, g))
-            # denom = add(s12, mul(w2, g2))
-            # e1 = div(n1, denom)
-            # e2 = div(n2, denom)
+            # Get the powers first
+            w02 = pow(w0, 2)
+            wp2 = pow(wp, 2)
+            w2 = pow(w_expand, 2)
+            g2 = pow(g, 2)
+
+            # Start calculating
+            s1 = add(w02, -w2)
+            s12= pow(s1, 2)
+            n1 = mul(wp2, s1)
+            n2 = mul(wp2, mul(w_expand, g))
+            denom = add(s12, mul(w2, g2))
+            e1 = div(n1, denom)
+            e2 = div(n2, denom)
 
             # # This is the version of more "machine" code that hard to understand but much more memory efficient
             # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
             #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
-            e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
-                     add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+            # e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
+            #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
             # # End line for the 2 versions of code that do the same thing, 1 for memory efficient but ugly
 
 
@@ -273,9 +273,9 @@ def Lorentz_layer(Lorentz_params):
     Lorentz_params = Lorentz_params.view([-1, int(Lorentz_params.size(1) / 3), 3])
 
     # Get the list of params for lorentz, also add one extra dimension at 3rd one to0
-    w0 = Lorentz_params[:, :, 0].unsqueeze(2) * 20
-    wp = Lorentz_params[:, :, 1].unsqueeze(2) * 20
-    g = Lorentz_params[:, :, 2].unsqueeze(2) * 0.5
+    w0 = Lorentz_params[:, :, 0].unsqueeze(2)
+    wp = Lorentz_params[:, :, 1].unsqueeze(2)
+    g = Lorentz_params[:, :, 2].unsqueeze(2)
     # nn.init.xavier_uniform_(g)
     # This is for debugging purpose (Very slow), recording the output tensors
     # self.w0s = w0.data.cpu().numpy()
@@ -298,25 +298,25 @@ def Lorentz_layer(Lorentz_params):
     End of testing module
     """
     # Get the powers first
-    # w02 = pow(w0, 2)
-    # wp2 = pow(wp, 2)
-    # w2 = pow(w_expand, 2)
-    # g2 = pow(g, 2)
-    #
-    # # Start calculating
-    # s1 = add(w02, -w2)
-    # s12 = pow(s1, 2)
-    # n1 = mul(wp2, s1)
-    # n2 = mul(wp2, mul(w_expand, g))
-    # denom = add(s12, mul(w2, g2))
-    # e1 = div(n1, denom)
-    # e2 = div(n2, denom)
+    w02 = pow(w0, 2)
+    wp2 = pow(wp, 2)
+    w2 = pow(w_expand, 2)
+    g2 = pow(g, 2)
+
+    # Start calculating
+    s1 = add(w02, -w2)
+    s12 = pow(s1, 2)
+    n1 = mul(wp2, s1)
+    n2 = mul(wp2, mul(w_expand, g))
+    denom = add(s12, mul(w2, g2))
+    e1 = div(n1, denom)
+    e2 = div(n2, denom)
 
     # # This is the version of more "machine" code that hard to understand but much more memory efficient
     # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
     #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
-    e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
-             add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+    # e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
+    #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
     # # End line for the 2 versions of code that do the same thing, 1 for memory efficient but ugly
 
 
