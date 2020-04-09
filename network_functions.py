@@ -18,7 +18,7 @@ from torchviz import make_dot
 
 # Libs
 import matplotlib
-matplotlib.use('Qt4Agg')
+matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -192,16 +192,18 @@ class Network(object):
         """
         if batch == 0:
             weights_layer = self.model.linears[layer].weight.cpu().data.numpy()   # Get the weights
-            weights_w0 = weights_layer[:,::3]
-            weights_wp = weights_layer[:, 1::3]
-            weights_g = weights_layer[:, 2::3]
 
-            weights_all = [weights_w0, weights_wp, weights_g]
+            # weights_w0 = weights_layer[:,::3]
+            # weights_wp = weights_layer[:, 1::3]
+            # weights_g = weights_layer[:, 2::3]
+
+            # weights_all = [weights_w0, weights_wp, weights_g]
+            weights_all = [weights_layer]
 
             # if epoch == 0:
             # np.savetxt('Training_Weights_Lorentz_Layer' + name,
             #     weights, fmt='%.3f', delimiter=',')
-
+            # print(weights_layer.shape)
             for ind, weights in enumerate(weights_all):
                 # Reshape the weights into a square dimension for plotting, zero padding if necessary
                 wmin = np.amin(np.asarray(weights.shape))
@@ -221,6 +223,7 @@ class Network(object):
                 #     save_path = os.path.join(self.ckpt_dir,save_file)
                 #     plt.savefig(save_path)
                 #     plt.show()
+
 
     def record_grad(self, name='Gradients', layer=-1, batch=999, epoch=999):
         """
@@ -290,7 +293,7 @@ class Network(object):
                     for ind in range(3):
                     # for ind, fc_num in enumerate(self.flags.linear):
                         self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
-                        self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
+                        # self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
 
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
@@ -403,8 +406,9 @@ class Network(object):
             self.lr_scheduler.step(train_avg_loss)
 
             # if epoch == self.flags.lr_warm_restart:
-            #     for param_group in self.optim.param_groups:
-            #         param_group['lr'] = self.flags.lr/10
+            #     for param_group in self.optm.param_groups:
+            #         param_group['lr'] = self.flags.lr
+            #         print('Resetting learning rate to %.5f' % self.flags.lr)
 
         # print('Finished')
         self.log.close()
@@ -440,7 +444,7 @@ class Network(object):
                 # Record weights and gradients to tb
                 for ind in range(3):
                     self.record_weight(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
-                    self.record_grad(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
+                    # self.record_grad(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
                     lor_params = lor_params.cuda()                      # Put data onto GPU
