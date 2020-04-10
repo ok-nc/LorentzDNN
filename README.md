@@ -36,6 +36,7 @@ to get dominated by big/strong ones, and model plateaus nearest local min.
 
 Short term
 - update/fix model evaluation/inference mode (including torch.no_grad)
+- fix tensorboard (add external script that takes latest folder and updates batch file)
 - save histogram for each training session at end in model folder (both full and fixed scale)
 - try concatenated inputs for lorentz layer
 

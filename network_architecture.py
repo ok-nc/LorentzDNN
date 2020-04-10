@@ -124,9 +124,9 @@ class Forward(nn.Module):
             if self.fix_w0:
                 w0 = self.w0.unsqueeze(0).unsqueeze(2)
             else:
-                w0 = out[:, :, 0].unsqueeze(2)       # This was set to 5 with sigmoid activation
-            wp = out[:, :, 1].unsqueeze(2)         # This was set to 5 with sigmoid activation
-            g = out[:, :, 2].unsqueeze(2)          # This was set to 0.5 with sigmoid activation
+                w0 = out[:, :, 0].unsqueeze(2) * 1       # This was set to 5 with sigmoid activation
+            wp = out[:, :, 1].unsqueeze(2) * 1         # This was set to 5 with sigmoid activation
+            g = out[:, :, 2].unsqueeze(2) * 0.1        # This was set to 0.5 with sigmoid activation
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()
@@ -149,25 +149,25 @@ class Forward(nn.Module):
             End of testing module
             """
             # Get the powers first
-            w02 = pow(w0, 2)
-            wp2 = pow(wp, 2)
-            w2 = pow(w_expand, 2)
-            g2 = pow(g, 2)
-
-            # Start calculating
-            s1 = add(w02, -w2)
-            s12= pow(s1, 2)
-            n1 = mul(wp2, s1)
-            n2 = mul(wp2, mul(w_expand, g))
-            denom = add(s12, mul(w2, g2))
-            e1 = div(n1, denom)
-            e2 = div(n2, denom)
+            # w02 = pow(w0, 2)
+            # wp2 = pow(wp, 2)
+            # w2 = pow(w_expand, 2)
+            # g2 = pow(g, 2)
+            #
+            # # Start calculating
+            # s1 = add(w02, -w2)
+            # s12= pow(s1, 2)
+            # n1 = mul(wp2, s1)
+            # n2 = mul(wp2, mul(w_expand, g))
+            # denom = add(s12, mul(w2, g2))
+            # e1 = div(n1, denom)
+            # e2 = div(n2, denom)
 
             # # This is the version of more "machine" code that hard to understand but much more memory efficient
             # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
             #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
-            # e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
-            #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+            e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
+                     add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
             # # End line for the 2 versions of code that do the same thing, 1 for memory efficient but ugly
 
 
@@ -298,25 +298,26 @@ def Lorentz_layer(Lorentz_params):
     End of testing module
     """
     # Get the powers first
-    w02 = pow(w0, 2)
-    wp2 = pow(wp, 2)
-    w2 = pow(w_expand, 2)
-    g2 = pow(g, 2)
-
-    # Start calculating
-    s1 = add(w02, -w2)
-    s12 = pow(s1, 2)
-    n1 = mul(wp2, s1)
-    n2 = mul(wp2, mul(w_expand, g))
-    denom = add(s12, mul(w2, g2))
-    e1 = div(n1, denom)
-    e2 = div(n2, denom)
+    # w02 = pow(w0, 2)
+    # wp2 = pow(wp, 2)
+    # w2 = pow(w_expand, 2)
+    # g2 = pow(g, 2)
+    #
+    # # Start calculating
+    # s1 = add(w02, -w2)
+    # s12 = pow(s1, 2)
+    # n1 = mul(wp2, s1)
+    # n2 = mul(wp2, mul(w_expand, g))
+    # denom = add(s12, mul(w2, g2))
+    # e1 = div(n1, denom)
+    # e2 = div(n2, denom)
 
     # # This is the version of more "machine" code that hard to understand but much more memory efficient
     # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
     #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
-    # e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
-    #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+
+    e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
+             add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
     # # End line for the 2 versions of code that do the same thing, 1 for memory efficient but ugly
 
 

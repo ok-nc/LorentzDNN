@@ -82,8 +82,8 @@ class Network(object):
 
         # custom_loss = torch.mean(torch.mean((logit - labels)**self.flags.err_exp, 1))
         # custom_loss = torch.mean(torch.norm((logit-labels),p=4))/logit.shape[0]
-        custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
-        # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
+        # custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
+        custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # logit_diff = logit[1:] - logit[:-1]
         # labels_diff = labels[1:] - labels[:-1]
         # derivative_loss = nn.functional.mse_loss(logit_diff, labels_diff)
@@ -287,7 +287,7 @@ class Network(object):
             for j, (geometry, spectra) in enumerate(self.train_loader):
                 # Record weights and gradients to tb
                 if epoch % self.flags.record_step == 0:
-                    for ind in range(3):
+                    for ind in range(1):
                     # for ind, fc_num in enumerate(self.flags.linear):
                         self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
                         self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
@@ -402,9 +402,9 @@ class Network(object):
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
 
-            # if epoch == self.flags.lr_warm_restart:
-            #     for param_group in self.optim.param_groups:
-            #         param_group['lr'] = self.flags.lr/10
+            if epoch == self.flags.lr_warm_restart:
+                for param_group in self.optm.param_groups:
+                    param_group['lr'] = self.flags.lr
 
         # print('Finished')
         self.log.close()
@@ -430,7 +430,7 @@ class Network(object):
         url = tb.launch()
 
         print("Starting pre-training process")
-        for epoch in range(250):                                    # Only 200 epochs needed for pretraining
+        for epoch in range(200):                                    # Only 200 epochs needed for pretraining
             # print("This is pretrainin Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = []
@@ -438,7 +438,7 @@ class Network(object):
             self.model.train()
             for j, (geometry, lor_params) in enumerate(pretrain_loader):
                 # Record weights and gradients to tb
-                for ind in range(3):
+                for ind in range(1):
                     self.record_weight(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
                     self.record_grad(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
                 if cuda:
