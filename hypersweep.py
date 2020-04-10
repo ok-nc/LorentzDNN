@@ -32,21 +32,21 @@ if __name__ == '__main__':
     model_name = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     # model_description = "Smooth_L1_Loss_Warm_Restart"
     # model_description = "MSE_Loss_Grad_Clip"
-    model_description = "_L"
-    for restart in [200, 500]:
-        for exp in [4,8]:
-            for clip in [20]:
-                # flags.lr_warm_restart = restart
-                # flags.use_warm_restart = True
-                flags.grad_clip = clip
-                for i in range(5):
-                    flags.linear = [8, 100, 100, 12]
-                    flags.model_name = model_name + model_description +str(exp)  + '_WRst_' + str(restart) + "_GC_" + \
-                                       str(clip) + "_run" + str(i + 1)
-                    # flags.model_name = model_name + model_description + "_L" + str(exp) +"_GC_" + \
-                    #                    str(clip) + "_run" + str(i + 1)
-                    train_network.training_from_flag(flags)
-    # for i in range(3):
-    #     flags.linear = [8, 100, 100, 12]
-    #     flags.model_name = model_name + '_' + model_description + "_run" + str(i + 1)
-    #     train_network.training_from_flag(flags)
+    model_description = "_smoothL1_pretrain"
+    # for restart in [200, 500]:
+    #     for exp in [4,8]:
+    #         for clip in [20]:
+    #             # flags.lr_warm_restart = restart
+    #             # flags.use_warm_restart = True
+    #             flags.grad_clip = clip
+    #             for i in range(5):
+    #                 flags.linear = [8, 100, 100, 12]
+    #                 flags.model_name = model_name + model_description +str(exp)  + '_WRst_' + str(restart) + "_GC_" + \
+    #                                    str(clip) + "_run" + str(i + 1)
+    #                 # flags.model_name = model_name + model_description + "_L" + str(exp) +"_GC_" + \
+    #                 #                    str(clip) + "_run" + str(i + 1)
+    #                 train_network.training_from_flag(flags)
+    for i in range(3):
+        flags.linear = [8, 100, 100, 12]
+        flags.model_name = model_name + '_' + model_description + "_run" + str(i + 1)
+        train_network.training_from_flag(flags)
