@@ -8,7 +8,7 @@ from sys import exit
 import flagreader
 import datareader
 from network_functions import Network
-from network_architecture import Forward
+from network_model import Forward
 # from network_lorentz import Network
 # from network_lorentz import Forward
 from logging_functions import write_flags_and_BVE

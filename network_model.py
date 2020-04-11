@@ -56,11 +56,15 @@ class Forward(nn.Module):
         # Linear Layer and Batch_norm Layer definitions here
         self.linears = nn.ModuleList([])
         self.bn_linears = nn.ModuleList([])
-        for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
+        for ind, fc_num in enumerate(flags.linear[0:-2]):               # Excluding the last one as we need intervals
             self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
             self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], track_running_stats=True, affine=True))
 
-        # self.linears.append(nn.Linear(flags.linear[-2],flags.linear[-1]))
+        self.lin_w0 = nn.Linear(self.flags.linear[-2], 4, bias=False)
+        self.lin_wp = nn.Linear(self.flags.linear[-2], 4, bias=False)
+        self.lin_g = nn.Linear(self.flags.linear[-2], 4, bias=False)
+        torch.nn.init.uniform_(self.lin_g.weight, a=0.0, b=0.1)
+
 
         if flags.use_conv:
             # Conv Layer definitions here
@@ -95,7 +99,7 @@ class Forward(nn.Module):
         # For the linear part
         for ind, (fc, bn) in enumerate(zip(self.linears, self.bn_linears)):
             #print(out.size())
-            if ind < len(self.linears) - 1:
+            if ind < len(self.linears) - 2:
                 out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
             else:
                 out = bn(fc(out))
@@ -119,15 +123,15 @@ class Forward(nn.Module):
             # epsilon_inf = torch.tensor([10], requires_grad=False).expand_as(epsilon_inf)
             # if torch.cuda.is_available():
             #     epsilon_inf = epsilon_inf.cuda()
-            out = last_Lor_layer.view([-1, int(out.size(1)/3), 3])
+            # out = last_Lor_layer.view([-1, int(out.size(1)/3), 3])
 
             # Get the list of params for lorentz, also add one extra dimension at 3rd one to
-            if self.fix_w0:
-                w0 = self.w0.unsqueeze(0).unsqueeze(2)
-            else:
-                w0 = out[:, :, 0].unsqueeze(2) * 5        # This was set to 5 with sigmoid activation
-            wp = out[:, :, 1].unsqueeze(2) * 5          # This was set to 5 with sigmoid activation
-            g = out[:, :, 2].unsqueeze(2) * 0.5           # This was set to 0.5 with sigmoid activation
+            # if self.fix_w0:
+            #     w0 = self.w0.unsqueeze(0).unsqueeze(2)
+            # else:
+            #     w0 = out[:, :, 0].unsqueeze(2) * 5
+            # wp = out[:, :, 1].unsqueeze(2) * 5
+            # g = out[:, :, 2].unsqueeze(2) * 0.5
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()
@@ -137,6 +141,12 @@ class Forward(nn.Module):
             #print(last_Lor_layer.size())
             #print(g.size())
             # self.eps_inf = epsilon_inf.data.cpu().numpy()
+
+            w0 = F.relu(self.lin_w0(out).unsqueeze(2))
+            wp = F.relu(self.lin_wp(out).unsqueeze(2))
+            g = F.relu(self.lin_g(out).unsqueeze(2))
+            # g = torch.sigmoid(self.lin_g(out).unsqueeze(2))
+
 
             # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
             w0 = w0.expand(out.size(0), self.num_lorentz, self.num_spec_point)

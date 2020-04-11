@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
 #from torchsummary import summary
 from torch.optim import lr_scheduler
-from network_architecture import Lorentz_layer
+from network_model import Lorentz_layer
 from torchviz import make_dot
 
 # Libs
@@ -289,11 +289,11 @@ class Network(object):
             self.model.train()
             for j, (geometry, spectra) in enumerate(self.train_loader):
                 # Record weights and gradients to tb
-                if epoch % self.flags.record_step == 0:
-                    for ind in range(3):
-                    # for ind, fc_num in enumerate(self.flags.linear):
-                        self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
-                        # self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
+                # if epoch % self.flags.record_step == 0:
+                #     for ind in range(3):
+                #     # for ind, fc_num in enumerate(self.flags.linear):
+                #         self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
+                #         # self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
 
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
@@ -389,7 +389,7 @@ class Network(object):
                 self.log.add_scalar('Loss/ Validation Loss', test_avg_loss, epoch)
 
                 print("This is Epoch %d, training loss %.5f, validation loss %.5f" \
-                      % (epoch, train_avg_loss, test_avg_loss ))
+                      % (epoch, train_avg_eval_mode_loss, test_avg_loss ))
 
                 # Model improving, save the model
                 if test_avg_loss < self.best_validation_loss:
@@ -405,10 +405,10 @@ class Network(object):
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
 
-            # if epoch == self.flags.lr_warm_restart:
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = self.flags.lr
-            #         print('Resetting learning rate to %.5f' % self.flags.lr)
+            if epoch % self.flags.lr_warm_restart == 0:
+                for param_group in self.optm.param_groups:
+                    param_group['lr'] = self.flags.lr
+                    print('Resetting learning rate to %.5f' % self.flags.lr)
 
         # print('Finished')
         self.log.close()
@@ -442,8 +442,8 @@ class Network(object):
             self.model.train()
             for j, (geometry, lor_params) in enumerate(pretrain_loader):
                 # Record weights and gradients to tb
-                for ind in range(3):
-                    self.record_weight(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
+                # for ind in range(3):
+                    # self.record_weight(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
                     # self.record_grad(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
