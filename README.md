@@ -35,10 +35,12 @@ to get dominated by big/strong ones, and model plateaus nearest local min.
 ## To dos:
 
 Short term
-- update/fix model evaluation/inference mode (including torch.no_grad)
+- give each lorentz parameter tensor its own fc network with bn
+- add gradient graphs for each lorentz param tensor in tb
+- update/fix model evaluation/inference mode
 - fix tensorboard (add external script that takes latest folder and updates batch file)
 - save histogram for each training session at end in model folder (both full and fixed scale)
-- try concatenated inputs for lorentz layer
+
 
 
 Longer term

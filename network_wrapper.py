@@ -4,6 +4,7 @@ Wrapper functions for the networks
 # Built-in
 import os
 import time
+# import psutil
 
 # Torch
 import torch
@@ -12,6 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
 #from torchsummary import summary
 from torch.optim import lr_scheduler
+from network_model import Lorentz_layer
 from torchviz import make_dot
 
 # Libs
@@ -20,7 +22,6 @@ matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from scipy.signal import argrelmax
 
 
 
@@ -41,12 +42,14 @@ class Network(object):
                 self.ckpt_dir = os.path.join(ckpt_dir, flags.model_name)
         self.model = self.create_model()                        # The model itself
         self.loss = self.make_custom_loss()                            # The loss function
+        self.pretrain_loss = self.make_MSE_loss()
         self.optm = None                                        # The optimizer: Initialized at train()
         self.lr_scheduler = None                                # The lr scheduler: Initialized at train()
         self.train_loader = train_loader                        # The train data loader
         self.test_loader = test_loader                          # The test data loader
         self.log = SummaryWriter(self.ckpt_dir)     # Create a summary writer for tensorboard
         self.best_validation_loss = float('inf')    # Set the BVL to large number
+        self.best_pretrain_loss = float('inf')  # Set the BVL to large number
 
     def create_model(self):
         """
@@ -81,31 +84,20 @@ class Network(object):
         # custom_loss = torch.mean(torch.norm((logit-labels),p=4))/logit.shape[0]
         custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
         # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
+        # logit_diff = logit[1:] - logit[:-1]
+        # labels_diff = labels[1:] - labels[:-1]
+        # derivative_loss = nn.functional.mse_loss(logit_diff, labels_diff)
+        # custom_loss += derivative_loss
+        # logit_norm = nn.functional.instance_norm(logit)
+        # labels_norm = nn.functional.instance_norm(labels)
 
-        additional_loss_term = self.peak_finder_loss(logit, labels)
-        custom_loss += additional_loss_term
-
+        # dotproduct = torch.tensordot(logit, labels)
+        # loss_penalty = torch.exp(-dotproduct/1000000)
+        # # print('Loss penalty is '+str(dotproduct.cpu().data.numpy()/10000))
+        # if custom_loss < 10:
+        #     additional_loss_term = self.make_e2_KK_loss(logit)
+        #     custom_loss += additional_loss_term
         return custom_loss
-
-    def peak_finder_loss(self, logit=None, labels=None):
-
-        if logit is None:
-            return None
-
-        width = 20
-        peak_loss = []
-        for i in range(labels.size()[0]):
-            window_maxima = torch.nn.functional.max_pool1d_with_indices(labels[i].view(1,1,-1),
-                                                                        width, 1, padding=width // 2)[1].squeeze()
-            candidates = window_maxima[:].unique()
-            peaks = candidates[((window_maxima[candidates] == candidates).nonzero())]
-            peak_indices = peaks.cpu().data.numpy()
-            pred = logit.cpu().data.numpy()
-            truth = labels.cpu().data.numpy()
-            peak_loss.append(np.sum(truth[i,peak_indices] - pred[i,peak_indices]))
-
-        loss = np.mean(peak_loss)
-        return loss
 
     def make_e2_KK_loss(self, logit=None):
         # Enforces Kramers-Kronig causality on e2 derivative
@@ -308,7 +300,7 @@ class Network(object):
                     spectra = spectra.cuda()                            # Put data onto GPU
 
                 self.optm.zero_grad()                                   # Zero the gradient first
-                logit = self.model(geometry)            # Get the output
+                logit, last_Lor_layer = self.model(geometry)            # Get the output
 
                 # print("logit type:", logit.dtype)
                 # print("spectra type:", spectra.dtype)
@@ -338,7 +330,7 @@ class Network(object):
                 # # Extra test for err_test < err_train issue #
                 # #############################################
                 self.model.eval()
-                logit = self.model(geometry)  # Get the output
+                logit, last_Lor_layer = self.model(geometry)  # Get the output
                 loss = self.make_custom_loss(logit, spectra)  # Get the loss tensor
                 train_loss_eval_mode_list.append(np.copy(loss.cpu().data.numpy()))
                 self.model.train()
@@ -380,7 +372,7 @@ class Network(object):
                         if cuda:
                             geometry = geometry.cuda()
                             spectra = spectra.cuda()
-                        logit = self.model(geometry)
+                        logit, last_Lor_layer = self.model(geometry)
                         #loss = self.make_MSE_loss(logit, spectra)                   # compute the loss
                         loss = self.make_custom_loss(logit, spectra)
                         test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
@@ -420,6 +412,118 @@ class Network(object):
 
         # print('Finished')
         self.log.close()
+        # p = psutil.Process(pid)
+        # p.terminate()
+
+    def pretrain(self, pretrain_loader, pretest_loader):
+        """
+        The pretraining function. This starts the pretraining using parameters given in the flags
+        :return: None
+        """
+        cuda = True if torch.cuda.is_available() else False
+        if cuda:
+            self.model.cuda()
+
+        # Construct optimizer after the model moved to GPU
+        self.optm = self.make_optimizer()
+        self.lr_scheduler = self.make_lr_scheduler()
+
+        # Start a tensorboard session for logging loss and training images
+        tb = program.TensorBoard()
+        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
+        url = tb.launch()
+
+        print("Starting pre-training process")
+        for epoch in range(250):                                    # Only 200 epochs needed for pretraining
+            # print("This is pretrainin Epoch {}".format(epoch))
+            # Set to Training Mode
+            train_loss = []
+            train_loss_eval_mode_list = []
+            self.model.train()
+            for j, (geometry, lor_params) in enumerate(pretrain_loader):
+                # Record weights and gradients to tb
+                # for ind in range(3):
+                    # self.record_weight(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
+                    # self.record_grad(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
+                if cuda:
+                    geometry = geometry.cuda()                          # Put data onto GPU
+                    lor_params = lor_params.cuda()                      # Put data onto GPU
+                self.optm.zero_grad()                                   # Zero the gradient first
+                logit, last_Lor_layer = self.model(geometry)            # Get the output
+                # print("label size:", lor_params.size())
+                # print("logit size:", last_Lor_layer.size())
+
+                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])       # Get the loss tensor
+                pretrain_loss.backward()                                # Calculate the backward gradients
+                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
+                self.optm.step()                                        # Move one step the optimizer
+                train_loss.append(np.copy(pretrain_loss.cpu().data.numpy()))                # Aggregate the loss
+
+                #############################################
+                # Extra test for err_test < err_train issue #
+                #############################################
+                self.model.eval()
+                logit, last_Lor_layer = self.model(geometry)  # Get the output
+                pretrain_loss = self.make_MSE_loss(last_Lor_layer, lor_params[:,:12])  # Get the loss tensor
+                train_loss_eval_mode_list.append(np.copy(pretrain_loss.cpu().data.numpy()))
+                self.model.train()
+
+            # Calculate the avg loss of training
+            train_avg_loss = np.mean(train_loss)
+            train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
+
+            if epoch % 10 == 0:            # Evaluate every 20 steps
+                # Record the training loss to the tensorboard
+                #train_avg_loss = train_loss.data.numpy() / (j+1)
+                self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
+                self.log.add_scalar('Pretrain Loss/ Evaluation Mode', train_avg_eval_mode_loss, epoch)
+
+                for j in range(self.flags.num_plot_compare):
+                    f = self.compare_Lor_params(pred=last_Lor_layer[j, :].cpu().data.numpy(),
+                                             truth=lor_params[j, :12].cpu().data.numpy())
+                    self.log.add_figure(tag='Test ' + str(j) +') e2 Lorentz Parameter Prediction'.
+                                        format(1), figure=f, global_step=epoch)
+
+                # Pretraining files contain both Lorentz parameters and simulated model spectra
+                pretrain_sim_prediction = lor_params[:, 12:]
+                pretrain_model_prediction = Lorentz_layer(last_Lor_layer)
+
+                for j in range(self.flags.num_plot_compare):
+
+                    f = self.compare_spectra(Ypred=pretrain_model_prediction[j, :].cpu().data.numpy(),
+                                             Ytruth=pretrain_sim_prediction[j, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Test ' + str(j) +') e2 Model Prediction'.format(1),
+                                        figure=f, global_step=epoch)
+
+                # f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
+                # self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
+                #                     global_step=epoch)
+
+                print("This is Epoch %d, pretraining loss %.5f" % (epoch, train_avg_eval_mode_loss ))
+
+                # Model improving, save the model
+                if train_avg_eval_mode_loss < self.best_pretrain_loss:
+                    self.best_pretrain_loss = train_avg_loss
+                    self.save()
+                    print("Saving the model...")
+
+                    if self.best_pretrain_loss < self.flags.stop_threshold:
+                        print("Pretraining finished EARLIER at epoch %d, reaching loss of %.5f" %\
+                              (epoch, self.best_pretrain_loss))
+                        return None
+
+            # Learning rate decay upon plateau
+            self.lr_scheduler.step(train_avg_loss)
+
+            # Save pretrained model at end
+            if epoch == 199:
+                # weights = self.model.linears[-1].weight.cpu().data.numpy()
+                # # print(weights.shape)
+                # np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
+                torch.save(self.model, os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
+                # self.record_weight(name='Pretraining', batch=0, epoch=999)
+
+        self.log.close()
 
     def evaluate(self, save_dir='data/'):
         self.load()                             # load the model as constructed
@@ -447,6 +551,34 @@ class Network(object):
                     np.savetxt(fyt, spectra.cpu().data.numpy(), fmt='%.3f')
                     np.savetxt(fyp, logits.cpu().data.numpy(), fmt='%.3f')
         return Ypred_file, Ytruth_file
+
+    def compare_Lor_params(self, pred, truth, title=None, figsize=[5, 5]):
+        """
+        Function to plot the comparison for predicted and truth Lorentz parameters
+        :param pred:  Predicted spectra, this should be a list of number of dimension 300, numpy
+        :param truth:  Truth spectra, this should be a list of number of dimension 300, numpy
+        :param title: The title of the plot, usually it comes with the time
+        :param figsize: The figure size of the plot
+        :return: The identifier of the figure
+        """
+        x = np.ones(4)
+        w0_pr = pred[0::3]
+        wp_pr = pred[1::3]
+        g_pr = pred[2::3]
+        w0_tr = truth[0::3]
+        wp_tr = truth[1::3]
+        g_tr = truth[2::3]
+        f = plt.figure(figsize=figsize)
+        marker_size = 14
+        plt.plot(x, w0_pr, markersize=marker_size, color='red', marker='o', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(x, w0_tr, markersize=marker_size, color='red', marker='o', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.plot(2*x, wp_pr, markersize=marker_size, color='blue', marker='s', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(2*x, wp_tr, markersize=marker_size, color='blue', marker='s', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.plot(3*x, g_pr, markersize=marker_size, color='green', marker='v', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(3*x, g_tr, markersize=marker_size, color='green', marker='v', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.xlabel("Lorentz Parameters")
+        plt.ylabel("Parameter value")
+        return f
 
     def compare_spectra(self, Ypred, Ytruth, T=None, title=None, figsize=[10, 5],
                         T_num=10, E1=None, E2=None, N=None, K=None, eps_inf=None, label_y1='Pred', label_y2='Truth'):
