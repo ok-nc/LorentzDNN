@@ -16,18 +16,19 @@ matplotlib.use('qt5agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Defines Network structure, extends Pytorch nn module
-class Network(nn.Module):
-    def __init__(self):
-        super(Network, self).__init__()
-
-        self.layer = torch.nn.Linear(1, 1)
-
-    def forward(self, x):
-        x = self.layer(x)
-        return x
+# # Defines Network structure, extends Pytorch nn module
+# class Network(nn.Module):
+#     def __init__(self):
+#         super(Network, self).__init__()
+#
+#         self.layer = torch.nn.Linear(1, 1)
+#
+#     def forward(self, x):
+#         x = self.layer(x)
+#         return x
 
 # Returns single e2 simulation for given lorentzian parameters
+
 def Lorentzian(w0, wp, g):
 
     freq_low = 0
