@@ -25,25 +25,16 @@ class Forward(nn.Module):
         # Assert the last entry of the fc_num is a multiple of 3 (This is for Lorentzian part)
         if flags.use_lorentz:
             # there is 1 extra parameter for lorentzian setting for epsilon_inf
-            flags.linear[-1] += 1
 
             self.num_spec_point = 300
 
-            assert (flags.linear[-1] - 1) % 3 == 0, "Please make sure your last layer in linear is\
-                                                        multiple of 3 (+1) since you are using lorentzian"
-            # Set the number of lorentz oscillator
-            self.num_lorentz = int(flags.linear[-1] / 3)
-
             # Create the constant for mapping the frequency w
             w_numpy = np.arange(flags.freq_low, flags.freq_high, (flags.freq_high - flags.freq_low) / self.num_spec_point)
-
-            self.w0 = torch.tensor(np.arange(0, 5, 5 / self.num_lorentz))
 
             # Create the tensor from numpy array
             cuda = True if torch.cuda.is_available() else False
             if cuda:
                 self.w = torch.tensor(w_numpy).cuda()
-                self.w0 = self.w0.cuda()
             else:
                 self.w = torch.tensor(w_numpy)
 
@@ -53,15 +44,14 @@ class Forward(nn.Module):
         # Linear Layer and Batch_norm Layer definitions here
         self.linears = nn.ModuleList([])
         self.bn_linears = nn.ModuleList([])
-        for ind, fc_num in enumerate(flags.linear[0:-2]):               # Excluding the last one as we need intervals
+        for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
             self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
             self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], track_running_stats=True, affine=True))
 
-        self.lin_w0 = nn.Linear(self.flags.linear[-2], 4, bias=False)
-        self.lin_wp = nn.Linear(self.flags.linear[-2], 4, bias=False)
-        self.lin_g = nn.Linear(self.flags.linear[-2], 4, bias=False)
+        self.lin_w0 = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
+        self.lin_wp = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
+        self.lin_g = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
         torch.nn.init.uniform_(self.lin_g.weight, a=0.0, b=0.1)
-
 
         if flags.use_conv:
             # Conv Layer definitions here
@@ -96,21 +86,20 @@ class Forward(nn.Module):
         # For the linear part
         for ind, (fc, bn) in enumerate(zip(self.linears, self.bn_linears)):
             #print(out.size())
-            if ind < len(self.linears) - 2:
+            if ind < len(self.linears) - 0:
                 out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
             else:
                 out = bn(fc(out))
-        # out = self.linears[-1](out)
-            # print(out.size())
-            # out = torch.sigmoid(out)
+
+        # for ind, fc in enumerate(self.linears):
+        #     out = F.relu(fc(out))
 
         # If use lorentzian layer, pass this output to the lorentzian layer
         if self.use_lorentz:
-            # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
             # out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
-            out = F.relu(out) + 0.00001
+            # out = F.relu(out) + 0.00001
 
-            # Get the out into (batch_size, num_lorentz, 3) and the last epsilon_inf baseline
+            # Get the out into (batch_size, num_lorentz_osc, 3) and the last epsilon_inf baseline
             # epsilon_inf = out[:,-1]  # For debugging purpose now
 
             # Set epsilon_inf to be a constant universal value here
@@ -139,7 +128,7 @@ class Forward(nn.Module):
 
 
             # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
-            w0 = w0.expand(out.size(0), self.num_lorentz, self.num_spec_point)
+            w0 = w0.expand(out.size(0), self.flags.num_lorentz_osc, self.num_spec_point)
             wp = wp.expand_as(w0)
             g = g.expand_as(w0)
             w_expand = self.w.expand_as(g)

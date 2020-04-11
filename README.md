@@ -36,6 +36,7 @@ to get dominated by big/strong ones, and model plateaus nearest local min.
 
 Short term
 - give each lorentz parameter tensor its own fc network with bn
+- implement a peak-searching loss term (using derivative)
 - add gradient graphs for each lorentz param tensor in tb
 - update/fix model evaluation/inference mode
 - fix tensorboard (add external script that takes latest folder and updates batch file)
