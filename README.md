@@ -42,7 +42,6 @@ Short term
 - save histogram for each training session at end in model folder (both full and fixed scale)
 
 
-
 Longer term
 1. Organize plotting and analysis functions into separate module
 2. Find best way to initialize params + best loss function (physics constrained)
