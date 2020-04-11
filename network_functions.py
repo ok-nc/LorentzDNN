@@ -4,7 +4,7 @@ Wrapper functions for the networks
 # Built-in
 import os
 import time
-import psutil
+# import psutil
 
 # Torch
 import torch
@@ -82,8 +82,8 @@ class Network(object):
 
         # custom_loss = torch.mean(torch.mean((logit - labels)**self.flags.err_exp, 1))
         # custom_loss = torch.mean(torch.norm((logit-labels),p=4))/logit.shape[0]
-        # custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
-        custom_loss = nn.functional.smooth_l1_loss(logit, labels)
+        custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
+        # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # logit_diff = logit[1:] - logit[:-1]
         # labels_diff = labels[1:] - labels[:-1]
         # derivative_loss = nn.functional.mse_loss(logit_diff, labels_diff)
@@ -192,16 +192,18 @@ class Network(object):
         """
         if batch == 0:
             weights_layer = self.model.linears[layer].weight.cpu().data.numpy()   # Get the weights
-            weights_w0 = weights_layer[:,::3]
-            weights_wp = weights_layer[:, 1::3]
-            weights_g = weights_layer[:, 2::3]
 
-            weights_all = [weights_w0, weights_wp, weights_g]
+            # weights_w0 = weights_layer[:,::3]
+            # weights_wp = weights_layer[:, 1::3]
+            # weights_g = weights_layer[:, 2::3]
+
+            # weights_all = [weights_w0, weights_wp, weights_g]
+            weights_all = [weights_layer]
 
             # if epoch == 0:
             # np.savetxt('Training_Weights_Lorentz_Layer' + name,
             #     weights, fmt='%.3f', delimiter=',')
-
+            # print(weights_layer.shape)
             for ind, weights in enumerate(weights_all):
                 # Reshape the weights into a square dimension for plotting, zero padding if necessary
                 wmin = np.amin(np.asarray(weights.shape))
@@ -214,8 +216,14 @@ class Network(object):
                 # c = plt.imshow(weights.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
                 # plt.colorbar(c, fraction=0.03)
                 f = self.plot_weights_3D(weights.reshape((sq, sq)), sq)
-                self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Weights_'+str(ind).format(1),
+                self.log.add_figure(tag='1_Weights_' + name + '_Layer ' + str(layer) + ')_'+str(ind).format(1),
                                     figure=f, global_step=epoch)
+                # if epoch == 0 or epoch == 999:
+                #     save_file = 'Weights'+str(ind)+'_'+name+'.png'
+                #     save_path = os.path.join(self.ckpt_dir,save_file)
+                #     plt.savefig(save_path)
+                #     plt.show()
+
 
     def record_grad(self, name='Gradients', layer=-1, batch=999, epoch=999):
         """
@@ -247,7 +255,7 @@ class Network(object):
                 # plt.colorbar(c, fraction=0.03)
                 f = self.plot_weights_3D(gradients.reshape((sq, sq)), sq)
 
-                self.log.add_figure(tag=name + '_Layer ' + str(layer) + ') Gradients_'+str(ind).format(1),
+                self.log.add_figure(tag='2_Gradients_'+ name + '_Layer ' + str(layer) + ')_'+str(ind).format(1),
                                     figure=f, global_step=epoch)
 
     def train(self):
@@ -282,10 +290,10 @@ class Network(object):
             for j, (geometry, spectra) in enumerate(self.train_loader):
                 # Record weights and gradients to tb
                 if epoch % self.flags.record_step == 0:
-                    for ind in range(1):
+                    for ind in range(3):
                     # for ind, fc_num in enumerate(self.flags.linear):
                         self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
-                        self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
+                        # self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
 
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
@@ -334,8 +342,8 @@ class Network(object):
             if epoch % self.flags.eval_step == 0:           # For eval steps, do the evaluations and tensor board
                 # Record the training loss to tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
-                self.log.add_scalar('Training Loss', train_avg_loss, epoch)
-                self.log.add_scalar('Batchnorm Training Loss', train_avg_eval_mode_loss, epoch)
+                self.log.add_scalar('Loss/ Training Loss', train_avg_loss, epoch)
+                self.log.add_scalar('Loss/ Batchnorm Training Loss', train_avg_eval_mode_loss, epoch)
                 # if self.flags.use_lorentz:
                 #     for j in range(self.flags.num_plot_compare):
                         # f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
@@ -352,7 +360,7 @@ class Network(object):
                     for j in range(self.flags.num_plot_compare):
                         f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
                                                  Ytruth=spectra[j, :].cpu().data.numpy())
-                        self.log.add_figure(tag='Sample ' + str(j) +') e2 Spectrum'.format(1),
+                        self.log.add_figure(tag='Test ' + str(j) +') e2 Sample Spectrum'.format(1),
                                             figure=f, global_step=epoch)
 
                 # Set to Evaluation Mode
@@ -372,13 +380,13 @@ class Network(object):
                         if j == 0 and epoch % self.flags.record_step == 0:
                             # f2 = self.plotMSELossDistrib(test_loss)
                             f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
-                            self.log.add_figure(tag='Testing Loss Histogram'.format(1), figure=f2,
+                            self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
                                                 global_step=epoch)
 
                 # Record the testing loss to the tensorboard
 
                 test_avg_loss = np.mean(test_loss)
-                self.log.add_scalar('Validation Loss', test_avg_loss, epoch)
+                self.log.add_scalar('Loss/ Validation Loss', test_avg_loss, epoch)
 
                 print("This is Epoch %d, training loss %.5f, validation loss %.5f" \
                       % (epoch, train_avg_loss, test_avg_loss ))
@@ -396,6 +404,11 @@ class Network(object):
 
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
+
+            # if epoch == self.flags.lr_warm_restart:
+            #     for param_group in self.optm.param_groups:
+            #         param_group['lr'] = self.flags.lr
+            #         print('Resetting learning rate to %.5f' % self.flags.lr)
 
         # print('Finished')
         self.log.close()
@@ -421,7 +434,7 @@ class Network(object):
         url = tb.launch()
 
         print("Starting pre-training process")
-        for epoch in range(200):                                    # Only 200 epochs needed for pretraining
+        for epoch in range(250):                                    # Only 200 epochs needed for pretraining
             # print("This is pretrainin Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = []
@@ -429,8 +442,9 @@ class Network(object):
             self.model.train()
             for j, (geometry, lor_params) in enumerate(pretrain_loader):
                 # Record weights and gradients to tb
-                self.record_weight(name='Pretraining', batch=j, epoch=epoch)
-                self.record_grad(name='Pretraining', batch=j, epoch=epoch)
+                for ind in range(3):
+                    self.record_weight(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
+                    # self.record_grad(name='Pretraining', layer=ind-1, batch=j, epoch=epoch)
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
                     lor_params = lor_params.cuda()                      # Put data onto GPU
@@ -467,19 +481,19 @@ class Network(object):
                 for j in range(self.flags.num_plot_compare):
                     f = self.compare_Lor_params(pred=last_Lor_layer[j, :].cpu().data.numpy(),
                                              truth=lor_params[j, :12].cpu().data.numpy())
-                    self.log.add_figure(tag='Sample ' + str(j) +') Lorentz Parameter Prediction'.
+                    self.log.add_figure(tag='Test ' + str(j) +') e2 Lorentz Parameter Prediction'.
                                         format(1), figure=f, global_step=epoch)
 
                 # Pretraining files contain both Lorentz parameters and simulated model spectra
-                # pretrain_sim_prediction = lor_params[:, 12:]
-                # pretrain_model_prediction = Lorentz_layer(last_Lor_layer)
-                #
-                # for j in range(self.flags.num_plot_compare):
-                #
-                #     f = self.compare_spectra(Ypred=pretrain_model_prediction[j, :].cpu().data.numpy(),
-                #                              Ytruth=pretrain_sim_prediction[j, :].cpu().data.numpy())
-                #     self.log.add_figure(tag='Model ' + str(j) +') e2 Prediction'.format(1),
-                #                         figure=f, global_step=epoch)
+                pretrain_sim_prediction = lor_params[:, 12:]
+                pretrain_model_prediction = Lorentz_layer(last_Lor_layer)
+
+                for j in range(self.flags.num_plot_compare):
+
+                    f = self.compare_spectra(Ypred=pretrain_model_prediction[j, :].cpu().data.numpy(),
+                                             Ytruth=pretrain_sim_prediction[j, :].cpu().data.numpy())
+                    self.log.add_figure(tag='Test ' + str(j) +') e2 Model Prediction'.format(1),
+                                        figure=f, global_step=epoch)
 
                 # f2 = self.plotMSELossDistrib(last_Lor_layer.cpu().data.numpy(), lor_params.cpu().data.numpy())
                 # self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
@@ -507,6 +521,7 @@ class Network(object):
                 # # print(weights.shape)
                 # np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
                 torch.save(self.model, os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
+                # self.record_weight(name='Pretraining', batch=0, epoch=999)
 
         self.log.close()
 

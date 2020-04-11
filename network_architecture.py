@@ -58,28 +58,29 @@ class Forward(nn.Module):
         self.bn_linears = nn.ModuleList([])
         for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
             self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
-            self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], affine=True))
+            self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], track_running_stats=True, affine=True))
 
+        # self.linears.append(nn.Linear(flags.linear[-2],flags.linear[-1]))
 
+        if flags.use_conv:
+            # Conv Layer definitions here
+            self.convs = nn.ModuleList([])
+            in_channel = 1                                                  # Initialize the in_channel number
+            for ind, (out_channel, kernel_size, stride) in enumerate(zip(flags.conv_out_channel,
+                                                                         flags.conv_kernel_size,
+                                                                         flags.conv_stride)):
+                if stride == 2:     # We want to double the number
+                    pad = int(kernel_size/2 - 1)
+                elif stride == 1:   # We want to keep the number unchanged
+                    pad = int((kernel_size - 1)/2)
+                else:
+                    Exception("Now only support stride = 1 or 2, contact Ben")
 
-        # Conv Layer definitions here
-        self.convs = nn.ModuleList([])
-        in_channel = 1                                                  # Initialize the in_channel number
-        for ind, (out_channel, kernel_size, stride) in enumerate(zip(flags.conv_out_channel,
-                                                                     flags.conv_kernel_size,
-                                                                     flags.conv_stride)):
-            if stride == 2:     # We want to double the number
-                pad = int(kernel_size/2 - 1)
-            elif stride == 1:   # We want to keep the number unchanged
-                pad = int((kernel_size - 1)/2)
-            else:
-                Exception("Now only support stride = 1 or 2, contact Ben")
+                self.convs.append(nn.ConvTranspose1d(in_channel, out_channel, kernel_size,
+                                    stride=stride, padding=pad)) # To make sure L_out double each time
+                in_channel = out_channel # Update the out_channel
 
-            self.convs.append(nn.ConvTranspose1d(in_channel, out_channel, kernel_size,
-                                stride=stride, padding=pad)) # To make sure L_out double each time
-            in_channel = out_channel # Update the out_channel
-
-        self.convs.append(nn.Conv1d(in_channel, out_channels=1, kernel_size=1, stride=1, padding=0))
+            self.convs.append(nn.Conv1d(in_channel, out_channels=1, kernel_size=1, stride=1, padding=0))
 
     def forward(self, G):
         """
@@ -98,35 +99,35 @@ class Forward(nn.Module):
                 out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
             else:
                 out = bn(fc(out))
-
+        # out = self.linears[-1](out)
             # print(out.size())
             # out = torch.sigmoid(out)
             # last_Lor_layer = out
             # return last_Lor_layer, last_Lor_layer
         # If use lorentzian layer, pass this output to the lorentzian layer
         if self.use_lorentz:
-            #last_Lor_layer = out[:, :-1]
+            # last_Lor_layer = out[:, :-1]
             # NOTE: if using pretraining, below must be commented out, otherwise initial fit is worse
             # out = torch.sigmoid(out)            # Lets say w0, wp is in range (0,5) for now
             out = F.relu(out) + 0.00001
             last_Lor_layer = out[:, :-1]
 
             # Get the out into (batch_size, num_lorentz, 3) and the last epsilon_inf baseline
-            epsilon_inf = out[:,-1]  # For debugging purpose now
+            # epsilon_inf = out[:,-1]  # For debugging purpose now
 
             # Set epsilon_inf to be a constant universal value here
-            epsilon_inf = torch.tensor([10], requires_grad=False).expand_as(epsilon_inf)
-            if torch.cuda.is_available():
-                epsilon_inf = epsilon_inf.cuda()
+            # epsilon_inf = torch.tensor([10], requires_grad=False).expand_as(epsilon_inf)
+            # if torch.cuda.is_available():
+            #     epsilon_inf = epsilon_inf.cuda()
             out = last_Lor_layer.view([-1, int(out.size(1)/3), 3])
 
             # Get the list of params for lorentz, also add one extra dimension at 3rd one to
             if self.fix_w0:
                 w0 = self.w0.unsqueeze(0).unsqueeze(2)
             else:
-                w0 = out[:, :, 0].unsqueeze(2) * 1      # This was set to 5 with sigmoid activation
-            wp = out[:, :, 1].unsqueeze(2) * 1          # This was set to 5 with sigmoid activation
-            g = out[:, :, 2].unsqueeze(2) * 0.1         # This was set to 0.5 with sigmoid activation
+                w0 = out[:, :, 0].unsqueeze(2) * 5        # This was set to 5 with sigmoid activation
+            wp = out[:, :, 1].unsqueeze(2) * 5          # This was set to 5 with sigmoid activation
+            g = out[:, :, 2].unsqueeze(2) * 0.5           # This was set to 0.5 with sigmoid activation
             #nn.init.xavier_uniform_(g)
             # This is for debugging purpose (Very slow), recording the output tensors
             # self.w0s = w0.data.cpu().numpy()
@@ -135,7 +136,7 @@ class Forward(nn.Module):
 
             #print(last_Lor_layer.size())
             #print(g.size())
-            self.eps_inf = epsilon_inf.data.cpu().numpy()
+            # self.eps_inf = epsilon_inf.data.cpu().numpy()
 
             # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
             w0 = w0.expand(out.size(0), self.num_lorentz, self.num_spec_point)
@@ -148,7 +149,7 @@ class Forward(nn.Module):
             #print("w0 size", w0.size())
             End of testing module
             """
-            # # Get the powers first
+            # Get the powers first
             # w02 = pow(w0, 2)
             # wp2 = pow(wp, 2)
             # w2 = pow(w_expand, 2)
@@ -166,7 +167,7 @@ class Forward(nn.Module):
             # # This is the version of more "machine" code that hard to understand but much more memory efficient
             # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
             #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
-            e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
+            e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
                      add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
             # # End line for the 2 versions of code that do the same thing, 1 for memory efficient but ugly
 
@@ -264,17 +265,17 @@ def Lorentz_layer(Lorentz_params):
         w = torch.tensor(w_numpy)
 
     # Get the out into (batch_size, num_lorentz, 3) and the last epsilon_inf baseline
-    epsilon_inf = Lorentz_params[:, -1]  # For debugging purpose now
+    # epsilon_inf = Lorentz_params[:, -1]  # For debugging purpose now
 
     # Set epsilon_inf to be a constant universal value here
-    epsilon_inf = torch.tensor([10], requires_grad=False).expand_as(epsilon_inf)
-    if torch.cuda.is_available():
-        epsilon_inf = epsilon_inf.cuda()
+    # epsilon_inf = torch.tensor([10], requires_grad=False).expand_as(epsilon_inf)
+    # if torch.cuda.is_available():
+    #     epsilon_inf = epsilon_inf.cuda()
     Lorentz_params = Lorentz_params.view([-1, int(Lorentz_params.size(1) / 3), 3])
 
     # Get the list of params for lorentz, also add one extra dimension at 3rd one to0
-    w0 = Lorentz_params[:, :, 0].unsqueeze(2) * 20
-    wp = Lorentz_params[:, :, 1].unsqueeze(2) * 20
+    w0 = Lorentz_params[:, :, 0].unsqueeze(2) * 5
+    wp = Lorentz_params[:, :, 1].unsqueeze(2) * 5
     g = Lorentz_params[:, :, 2].unsqueeze(2) * 0.5
     # nn.init.xavier_uniform_(g)
     # This is for debugging purpose (Very slow), recording the output tensors
@@ -315,7 +316,7 @@ def Lorentz_layer(Lorentz_params):
     # # This is the version of more "machine" code that hard to understand but much more memory efficient
     # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
     #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
-    e2 = div(mul(pow(wp, 2), mul(w_expand, pow(g, 2))),
+    e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
              add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
     # # End line for the 2 versions of code that do the same thing, 1 for memory efficient but ugly
 
