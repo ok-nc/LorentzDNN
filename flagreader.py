@@ -20,9 +20,9 @@ def read_flag():
     """
     parser = argparse.ArgumentParser()
     # Model Architectural Params
-    parser.add_argument('--use-lorentz', type=bool, default=USE_LORENTZ, help='The boolean flag that indicate whether we use lorentz oscillator')
+    parser.add_argument('--use-lorentz', type=bool, default=USE_LORENTZ, help='The boolean flag that indicate whether we use lorentz oscillators')
+    parser.add_argument('--num-lorentz-osc', type=bool, default=NUM_LORENTZ_OSC, help='Number of lorentz oscillators to use')
     parser.add_argument('--use-conv', type=bool, default=USE_CONV, help='The boolean flag that indicate whether we use upconv layer if not using lorentz')
-    parser.add_argument('--fix-w0', type=bool, default=FIX_W0, help='The boolean flag that indicate whether fix the lorentzian frequencis')
     parser.add_argument('--linear', type=list, default=LINEAR, help='The fc layers units')
     parser.add_argument('--conv-out-channel', type=list, default=CONV_OUT_CHANNEL, help='The output channel of your 1d conv')
     parser.add_argument('--conv-kernel-size', type=list, default=CONV_KERNEL_SIZE, help='The kernel size of your 1d conv')

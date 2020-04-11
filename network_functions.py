@@ -13,7 +13,6 @@ from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
 #from torchsummary import summary
 from torch.optim import lr_scheduler
-from network_model import Lorentz_layer
 from torchviz import make_dot
 
 # Libs
