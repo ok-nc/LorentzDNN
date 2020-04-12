@@ -1,7 +1,7 @@
 """
-This .py file is to run train_network.py for hyper-parameter swipping in a linear fashion.
+This .py file is to run train.py for hyper-parameter swipping in a linear fashion.
 """
-import train_network
+import train
 #os.environ["CUDA_VISIBLE_DEVICE"] = "-1"               #Uncomment this line if you want to use CPU only
 import  numpy as np
 import os
@@ -49,4 +49,4 @@ if __name__ == '__main__':
     for i in range(3):
         flags.linear = [8, 100, 100, 12]
         flags.model_name = model_name + '_' + model_description + "_run" + str(i + 1)
-        train_network.training_from_flag(flags)
+        train.training_from_flag(flags)
