@@ -5,7 +5,7 @@ Parameter file for specifying the running parameters for forward model
 USE_LORENTZ = True
 NUM_LORENTZ_OSC = 4
 USE_CONV = False                         # Whether use upconv layer when not using lorentz @Omar
-LINEAR = [8, 100, 100]
+LINEAR = [8, 30, 30]
 # If the Lorentzian is False
 CONV_OUT_CHANNEL = [4, 4, 4]
 CONV_KERNEL_SIZE = [8, 5, 5]
@@ -24,8 +24,8 @@ LR_DECAY_RATE = 0.5
 STOP_THRESHOLD = 1e-5
 USE_CLIP = True
 GRAD_CLIP = 10
-USE_WARM_RESTART = False
-LR_WARM_RESTART = 300
+USE_WARM_RESTART = True
+LR_WARM_RESTART = 600
 ERR_EXP = 4
 
 # Data Specific parameters

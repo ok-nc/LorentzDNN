@@ -21,6 +21,7 @@ matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.signal import argrelmax
 
 
 
@@ -81,12 +82,6 @@ class Network(object):
         # custom_loss = torch.mean(torch.norm((logit-labels),p=4))/logit.shape[0]
         custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
         # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
-        # logit_diff = logit[1:] - logit[:-1]
-        # labels_diff = labels[1:] - labels[:-1]
-        # derivative_loss = nn.functional.mse_loss(logit_diff, labels_diff)
-        # custom_loss += derivative_loss
-        # logit_norm = nn.functional.instance_norm(logit)
-        # labels_norm = nn.functional.instance_norm(labels)
 
         # dotproduct = torch.tensordot(logit, labels)
         # loss_penalty = torch.exp(-dotproduct/1000000)
@@ -95,6 +90,13 @@ class Network(object):
         #     additional_loss_term = self.make_e2_KK_loss(logit)
         #     custom_loss += additional_loss_term
         return custom_loss
+
+    def peak_finder_loss(self, logit=None, labels=None):
+
+        if logit is None:
+            return None
+
+
 
     def make_e2_KK_loss(self, logit=None):
         # Enforces Kramers-Kronig causality on e2 derivative
@@ -157,13 +159,9 @@ class Network(object):
         1. ReduceLROnPlateau (decrease lr when validation error stops improving
         :return:
         """
-        if self.flags.use_warm_restart:
-            return lr_scheduler.CosineAnnealingWarmRestarts(optimizer=self.optm,
-                                                            T_0=self.flags.lr_warm_restart, T_mult=1)
-        else:
-            return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm, mode='min',
-                                            factor=self.flags.lr_decay_rate,
-                                              patience=10, verbose=True, threshold=1e-4)
+        return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm, mode='min',
+                                        factor=self.flags.lr_decay_rate,
+                                          patience=10, verbose=True, threshold=1e-4)
 
 
 
@@ -181,79 +179,61 @@ class Network(object):
         """
         self.model = torch.load(os.path.join(self.ckpt_dir, 'best_model.pt'))
 
-    def record_weight(self, name='Weights', layer=-1, batch=999, epoch=999):
+    def record_weight(self, name='Weights', layer=None, batch=999, epoch=999):
         """
         Record the weights for a specific layer to tensorboard (save to file if desired)
         :input: name: The name to save
         :input: layer: The layer to check
         """
         if batch == 0:
-            weights_layer = self.model.linears[layer].weight.cpu().data.numpy()   # Get the weights
-
-            # weights_w0 = weights_layer[:,::3]
-            # weights_wp = weights_layer[:, 1::3]
-            # weights_g = weights_layer[:, 2::3]
-
-            # weights_all = [weights_w0, weights_wp, weights_g]
-            weights_all = [weights_layer]
+            weights = layer.weight.cpu().data.numpy()   # Get the weights
 
             # if epoch == 0:
             # np.savetxt('Training_Weights_Lorentz_Layer' + name,
             #     weights, fmt='%.3f', delimiter=',')
             # print(weights_layer.shape)
-            for ind, weights in enumerate(weights_all):
-                # Reshape the weights into a square dimension for plotting, zero padding if necessary
-                wmin = np.amin(np.asarray(weights.shape))
-                wmax = np.amax(np.asarray(weights.shape))
-                sq = int(np.floor(np.sqrt(wmin * wmax)) + 1)
-                diff = np.zeros((1, int(sq**2 - (wmin * wmax))), dtype='float64')
-                weights = weights.reshape((1, -1))
-                weights = np.concatenate((weights, diff), axis=1)
-                # f = plt.figure(figsize=(10, 5))
-                # c = plt.imshow(weights.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
-                # plt.colorbar(c, fraction=0.03)
-                f = self.plot_weights_3D(weights.reshape((sq, sq)), sq)
-                self.log.add_figure(tag='1_Weights_' + name + '_Layer ' + str(layer) + ')_'+str(ind).format(1),
-                                    figure=f, global_step=epoch)
-                # if epoch == 0 or epoch == 999:
-                #     save_file = 'Weights'+str(ind)+'_'+name+'.png'
-                #     save_path = os.path.join(self.ckpt_dir,save_file)
-                #     plt.savefig(save_path)
-                #     plt.show()
 
+            # Reshape the weights into a square dimension for plotting, zero padding if necessary
+            wmin = np.amin(np.asarray(weights.shape))
+            wmax = np.amax(np.asarray(weights.shape))
+            sq = int(np.floor(np.sqrt(wmin * wmax)) + 1)
+            diff = np.zeros((1, int(sq**2 - (wmin * wmax))), dtype='float64')
+            weights = weights.reshape((1, -1))
+            weights = np.concatenate((weights, diff), axis=1)
+            # f = plt.figure(figsize=(10, 5))
+            # c = plt.imshow(weights.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
+            # plt.colorbar(c, fraction=0.03)
+            f = self.plot_weights_3D(weights.reshape((sq, sq)), sq)
+            self.log.add_figure(tag='1_Weights_' + name + '_Layer'.format(1),
+                                figure=f, global_step=epoch)
 
-    def record_grad(self, name='Gradients', layer=-1, batch=999, epoch=999):
+    def record_grad(self, name='Gradients', layer=None, batch=999, epoch=999):
         """
         Record the gradients for a specific layer to tensorboard (save to file if desired)
         :input: name: The name to save
         :input: layer: The layer to check
         """
         if batch == 0 and epoch > 0:
-            gradients_layer = self.model.linears[layer].weight.grad.cpu().data.numpy()
-            gradients_w0 = gradients_layer[:, ::3]
-            gradients_wp = gradients_layer[:, 1::3]
-            gradients_g = gradients_layer[:, 2::3]
+            gradients = layer.weight.grad.cpu().data.numpy()
 
-            gradients_all = [gradients_w0, gradients_wp, gradients_g]
             # if epoch == 0:
-            #     np.savetxt('Training_Gradients_Lorentz_Layer' + name,
-            #                gradients, fmt='%.3f', delimiter=',')
+            # np.savetxt('Training_Weights_Lorentz_Layer' + name,
+            #     weights, fmt='%.3f', delimiter=',')
+            # print(weights_layer.shape)
 
-            # Reshape the gradients into a square dimension for plotting, zero padding if necessary
-            for ind, gradients in enumerate(gradients_all):
-                grmin = np.amin(np.asarray(gradients.shape))
-                grmax = np.amax(np.asarray(gradients.shape))
-                sq = int(np.floor(np.sqrt(grmin * grmax)) + 1)
-                diff = np.zeros((1, int(sq ** 2 - (grmin * grmax))), dtype='float64')
-                gradients = gradients.reshape((1, -1))
-                gradients = np.concatenate((gradients, diff), axis=1)
-                # f = plt.figure(figsize=(10, 5))
-                # c = plt.imshow(gradients.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
-                # plt.colorbar(c, fraction=0.03)
-                f = self.plot_weights_3D(gradients.reshape((sq, sq)), sq)
-
-                self.log.add_figure(tag='2_Gradients_'+ name + '_Layer ' + str(layer) + ')_'+str(ind).format(1),
-                                    figure=f, global_step=epoch)
+            # Reshape the weights into a square dimension for plotting, zero padding if necessary
+            wmin = np.amin(np.asarray(gradients.shape))
+            wmax = np.amax(np.asarray(gradients.shape))
+            sq = int(np.floor(np.sqrt(wmin * wmax)) + 1)
+            diff = np.zeros((1, int(sq ** 2 - (wmin * wmax))), dtype='float64')
+            gradients = gradients.reshape((1, -1))
+            gradients = np.concatenate((gradients, diff), axis=1)
+            # f = plt.figure(figsize=(10, 5))
+            # c = plt.imshow(weights.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
+            # plt.colorbar(c, fraction=0.03)
+            f = self.plot_weights_3D(gradients.reshape((sq, sq)), sq)
+            self.log.add_figure(tag='1_Gradients_' + name + '_Layer'.format(1),
+                                figure=f, global_step=epoch)
 
     def train(self):
         """
@@ -286,11 +266,15 @@ class Network(object):
             self.model.train()
             for j, (geometry, spectra) in enumerate(self.train_loader):
                 # Record weights and gradients to tb
-                # if epoch % self.flags.record_step == 0:
-                #     for ind in range(3):
-                #     # for ind, fc_num in enumerate(self.flags.linear):
-                #         self.record_weight(name='Training', layer=ind-1, batch=j, epoch=epoch)
-                #         # self.record_grad(name='Training', layer=ind-1, batch=j, epoch=epoch)
+
+                # TODO: Create loop for this
+                if epoch % self.flags.record_step == 0:
+                    self.record_weight(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
+                    self.record_weight(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
+                    self.record_weight(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
+                    self.record_grad(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
+                    self.record_grad(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
+                    self.record_grad(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
 
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
@@ -402,10 +386,11 @@ class Network(object):
             # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
 
-            if epoch % self.flags.lr_warm_restart == 0:
-                for param_group in self.optm.param_groups:
-                    param_group['lr'] = self.flags.lr
-                    print('Resetting learning rate to %.5f' % self.flags.lr)
+            if self.flags.use_warm_restart:
+                if epoch % self.flags.lr_warm_restart == 0:
+                    for param_group in self.optm.param_groups:
+                        param_group['lr'] = self.flags.lr
+                        print('Resetting learning rate to %.5f' % self.flags.lr)
 
         # print('Finished')
         self.log.close()
