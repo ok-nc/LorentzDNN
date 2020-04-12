@@ -4,7 +4,6 @@ Wrapper functions for the networks
 # Built-in
 import os
 import time
-# import psutil
 
 # Torch
 import torch
@@ -430,8 +429,6 @@ class Network(object):
 
         # print('Finished')
         self.log.close()
-        # p = psutil.Process(pid)
-        # p.terminate()
 
     def evaluate(self, save_dir='data/'):
         self.load()                             # load the model as constructed
