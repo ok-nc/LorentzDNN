@@ -405,7 +405,7 @@ class Network(object):
         # print('Finished')
         self.log.close()
 
-    def evaluate(self, save_dir='data/'):
+    def evaluate(self, save_dir='eval/'):
         self.load()                             # load the model as constructed
         cuda = True if torch.cuda.is_available() else False
         if cuda:

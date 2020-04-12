@@ -272,3 +272,16 @@ def plot_loss_folder_comparison():
         # plt.savefig('C:/Users/labuser/mlmOK_Pytorch/Loss_Comparison.png')
 
         return df
+
+def plotMSELossDistrib_eval(pred_file, truth_file, flags):
+
+    mae, mse = compare_truth_pred(pred_file, truth_file)
+    plt.figure(figsize=(12, 6))
+    plt.hist(mse, bins=100)
+    plt.xlabel('Mean Squared Error')
+    plt.ylabel('cnt')
+    plt.suptitle('(Avg MSE={:.4e})'.format(np.mean(mse)))
+    eval_model_str = flags.eval_model.replace('/','_')
+    plt.savefig(os.path.join(os.path.abspath(''), 'eval',
+                         '{}.png'.format(eval_model_str)))
+    print('(Avg MSE={:.4e})'.format(np.mean(mse)))
