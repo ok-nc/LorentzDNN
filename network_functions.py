@@ -21,6 +21,7 @@ matplotlib.use('Agg')
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.signal import argrelmax
 
 
 
@@ -87,14 +88,34 @@ class Network(object):
         # custom_loss += derivative_loss
         # logit_norm = nn.functional.instance_norm(logit)
         # labels_norm = nn.functional.instance_norm(labels)
-
+        additional_loss_term = self.peak_finder_loss(logit,labels)
         # dotproduct = torch.tensordot(logit, labels)
         # loss_penalty = torch.exp(-dotproduct/1000000)
         # # print('Loss penalty is '+str(dotproduct.cpu().data.numpy()/10000))
         # if custom_loss < 10:
         #     additional_loss_term = self.make_e2_KK_loss(logit)
-        #     custom_loss += additional_loss_term
+        custom_loss += additional_loss_term
         return custom_loss
+
+    def peak_finder_loss(self, logit=None, labels=None):
+
+        if logit is None:
+            return None
+
+        width = 20
+        peak_loss = []
+        for i in range(labels.size()[0]):
+            window_maxima = torch.nn.functional.max_pool1d_with_indices(labels[i].view(1,1,-1),
+                                                                        width, 1, padding=width // 2)[1].squeeze()
+            candidates = window_maxima[:].unique()
+            peaks = candidates[((window_maxima[candidates] == candidates).nonzero())]
+            peak_indices = peaks.cpu().data.numpy()
+            pred = logit.cpu().data.numpy()
+            truth = labels.cpu().data.numpy()
+            peak_loss.append(np.sum(truth[i,peak_indices] - pred[i,peak_indices]))
+
+        loss = np.mean(peak_loss)
+        return loss
 
     def make_e2_KK_loss(self, logit=None):
         # Enforces Kramers-Kronig causality on e2 derivative
