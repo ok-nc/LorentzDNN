@@ -421,7 +421,7 @@ class Network(object):
         # Open those files to append
         with open(Xtruth_file, 'a') as fxt,open(Ytruth_file, 'a') as fyt, open(Ypred_file, 'a') as fyp:
             # Loop through the eval data and evaluate
-            with torch.no_grad:
+            with torch.no_grad():
                 for ind, (geometry, spectra) in enumerate(self.test_loader):
                     if cuda:
                         geometry = geometry.cuda()

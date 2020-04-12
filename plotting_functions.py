@@ -275,7 +275,7 @@ def plot_loss_folder_comparison():
 
 def plotMSELossDistrib_eval(pred_file, truth_file, flags):
 
-    mae, mse = compare_truth_pred(pred_file, truth_file)
+    mae, mse = utils.compare_truth_pred(pred_file, truth_file)
     plt.figure(figsize=(12, 6))
     plt.hist(mse, bins=100)
     plt.xlabel('Mean Squared Error')

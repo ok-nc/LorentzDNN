@@ -85,7 +85,24 @@ def tb_extract(model_path=None, keys=['Loss'], anim=False):
                         imageio.mimsave(os.path.join(jpg_dir, tag_name + '.gif'), images, fps=2)
 
 
+def compare_truth_pred(pred_file, truth_file):
+    """
+    Read truth and pred from csv files, compute their mean-absolute-error and the mean-squared-error
+    :param pred_file: full path to pred file
+    :param truth_file: full path to truth file
+    :return: mae and mse
+    """
+    pred = np.loadtxt(pred_file, delimiter=' ')
+    truth = np.loadtxt(truth_file, delimiter=' ')
+    print("in compare truth pred function in eval_help package, your shape of pred file is", np.shape(pred))
+    # This is for the edge case of ballistic, where y value is 1 dimensional which cause dimension problem
+    if len(np.shape(pred)) == 1:
+        pred = np.reshape(pred, [-1, 1])
+        truth = np.reshape(truth, [-1, 1])
+    mae = np.mean(np.abs(pred - truth), axis=1)
+    mse = np.mean(np.square(pred - truth), axis=1)
 
+    return mae, mse
 
 
 
