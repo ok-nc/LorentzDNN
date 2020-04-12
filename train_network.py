@@ -7,7 +7,7 @@ from sys import exit
 # Other custom network modules
 import flagreader
 import datareader
-from network_functions import Network
+from network_wrapper import Network
 from network_model import Forward
 # from network_lorentz import Network
 # from network_lorentz import Forward
