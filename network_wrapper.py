@@ -81,19 +81,10 @@ class Network(object):
         # custom_loss = torch.mean(torch.norm((logit-labels),p=4))/logit.shape[0]
         custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
         # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
-        # logit_diff = logit[1:] - logit[:-1]
-        # labels_diff = labels[1:] - labels[:-1]
-        # derivative_loss = nn.functional.mse_loss(logit_diff, labels_diff)
-        # custom_loss += derivative_loss
-        # logit_norm = nn.functional.instance_norm(logit)
-        # labels_norm = nn.functional.instance_norm(labels)
-        additional_loss_term = self.peak_finder_loss(logit,labels)
-        # dotproduct = torch.tensordot(logit, labels)
-        # loss_penalty = torch.exp(-dotproduct/1000000)
-        # # print('Loss penalty is '+str(dotproduct.cpu().data.numpy()/10000))
-        # if custom_loss < 10:
-        #     additional_loss_term = self.make_e2_KK_loss(logit)
+
+        additional_loss_term = self.peak_finder_loss(logit, labels)
         custom_loss += additional_loss_term
+
         return custom_loss
 
     def peak_finder_loss(self, logit=None, labels=None):
