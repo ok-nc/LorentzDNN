@@ -13,6 +13,7 @@ from tensorboard import program
 #from torchsummary import summary
 from torch.optim import lr_scheduler
 from torchviz import make_dot
+from plotting_functions import plot_weights_3D, plotMSELossDistrib, compare_spectra
 
 # Libs
 import matplotlib
@@ -130,7 +131,7 @@ class Network(object):
         dwe_dw = torch.div(we_w_diff, dw)
         diff = torch.abs(torch.min(dwe_dw[:, :]))
         diff_scaled = diff/logit.shape[0]
-        # f = self.compare_spectra(Ypred=we_w[0, 1:].cpu().data.numpy(),
+        # f = compare_spectra(Ypred=we_w[0, 1:].cpu().data.numpy(),
         #                          Ytruth=dwe_dw[0, :].cpu().data.numpy(), label_y1='w*e(w)', label_y2='d(w*e)/dw')
         # self.log.add_figure(tag='Sample ' + str(0) + ') derivative e2 Spectrum'.format(1),
         #                     figure=f)
@@ -213,7 +214,7 @@ class Network(object):
             # f = plt.figure(figsize=(10, 5))
             # c = plt.imshow(weights.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
             # plt.colorbar(c, fraction=0.03)
-            f = self.plot_weights_3D(weights.reshape((sq, sq)), sq)
+            f = plot_weights_3D(weights.reshape((sq, sq)), sq)
             self.log.add_figure(tag='1_Weights_' + name + '_Layer'.format(1),
                                 figure=f, global_step=epoch)
 
@@ -241,7 +242,7 @@ class Network(object):
             # f = plt.figure(figsize=(10, 5))
             # c = plt.imshow(weights.reshape((sq, sq)), cmap=plt.get_cmap('viridis'))
             # plt.colorbar(c, fraction=0.03)
-            f = self.plot_weights_3D(gradients.reshape((sq, sq)), sq)
+            f = plot_weights_3D(gradients.reshape((sq, sq)), sq)
             self.log.add_figure(tag='1_Gradients_' + name + '_Layer'.format(1),
                                 figure=f, global_step=epoch)
 
@@ -337,7 +338,7 @@ class Network(object):
                 self.log.add_scalar('Loss/ Batchnorm Training Loss', train_avg_eval_mode_loss, epoch)
                 # if self.flags.use_lorentz:
                 #     for j in range(self.flags.num_plot_compare):
-                        # f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
+                        # f = compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
                         #                          Ytruth=spectra[j, :].cpu().data.numpy(),
                         #                          T=self.model.T_each_lor[j, :],
                         #                          eps_inf = self.model.eps_inf[j])
@@ -349,8 +350,9 @@ class Network(object):
 
                 if epoch % self.flags.record_step == 0:
                     for j in range(self.flags.num_plot_compare):
-                        f = self.compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
-                                                 Ytruth=spectra[j, :].cpu().data.numpy())
+                        f = compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
+                                                 Ytruth=spectra[j, :].cpu().data.numpy(), xmin=self.flags.freq_low,
+                                            xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
                         self.log.add_figure(tag='Test ' + str(j) +') e2 Sample Spectrum'.format(1),
                                             figure=f, global_step=epoch)
 
@@ -369,8 +371,8 @@ class Network(object):
                         test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
 
                         if j == 0 and epoch % self.flags.record_step == 0:
-                            # f2 = self.plotMSELossDistrib(test_loss)
-                            f2 = self.plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
+                            # f2 = plotMSELossDistrib(test_loss)
+                            f2 = plotMSELossDistrib(logit.cpu().data.numpy(), spectra.cpu().data.numpy())
                             self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
                                                 global_step=epoch)
 
@@ -432,77 +434,8 @@ class Network(object):
                     np.savetxt(fyp, logits.cpu().data.numpy(), fmt='%.3f')
         return Ypred_file, Ytruth_file
 
-    def compare_spectra(self, Ypred, Ytruth, T=None, title=None, figsize=[10, 5],
-                        T_num=10, E1=None, E2=None, N=None, K=None, eps_inf=None, label_y1='Pred', label_y2='Truth'):
-        """
-        Function to plot the comparison for predicted spectra and truth spectra
-        :param Ypred:  Predicted spectra, this should be a list of number of dimension 300, numpy
-        :param Ytruth:  Truth spectra, this should be a list of number of dimension 300, numpy
-        :param title: The title of the plot, usually it comes with the time
-        :param figsize: The figure size of the plot
-        :return: The identifier of the figure
-        """
-        # Make the frequency into real frequency in THz
-        num_points = len(Ypred)
-        frequency = self.flags.freq_low + (self.flags.freq_high - self.flags.freq_low) / len(Ytruth) * np.arange(num_points)
-        f = plt.figure(figsize=figsize)
-        plt.plot(frequency, Ypred, label=label_y1)
-        plt.plot(frequency, Ytruth, label=label_y2)
-        if T is not None:
-            plt.plot(frequency, T, linewidth=1, linestyle='--')
-        if E2 is not None:
-            for i in range(np.shape(E2)[0]):
-                plt.plot(frequency, E2[i, :], linewidth=1, linestyle=':', label="E2" + str(i))
-        if E1 is not None:
-            for i in range(np.shape(E1)[0]):
-                plt.plot(frequency, E1[i, :], linewidth=1, linestyle='-', label="E1" + str(i))
-        if N is not None:
-            plt.plot(frequency, N, linewidth=1, linestyle=':', label="N")
-        if K is not None:
-            plt.plot(frequency, K, linewidth=1, linestyle='-', label="K")
-        if eps_inf is not None:
-            plt.plot(frequency, np.ones(np.shape(frequency)) * eps_inf, label="eps_inf")
-        # plt.ylim([0, 1])
-        plt.legend()
-        #plt.xlim([self.flags.freq_low, self.flags.freq_high])
-        plt.xlabel("Frequency (THz)")
-        plt.ylabel("e2")
-        if title is not None:
-            plt.title(title)
-        return f
-
-    def plotMSELossDistrib(self, pred, truth):
-
-        # mae, mse = compare_truth_pred(pred_file, truth_file)
-        # mae = np.mean(np.abs(pred - truth), axis=1)
-        mse = np.mean(np.square(pred - truth), axis=1)
-        # mse = loss
-        f = plt.figure(figsize=(12, 6))
-        plt.hist(mse, bins=100)
-        plt.xlabel('Validation Loss')
-        plt.ylabel('Count')
-        plt.suptitle('Model (Avg MSE={:.4e})'.format(np.mean(mse)))
-        # plt.savefig(os.path.join(os.path.abspath(''), 'models',
-        #                          'MSEdistrib_{}.png'.format(flags.model_name)))
-        return f
-        # plt.show()
-        # print('Backprop (Avg MSE={:.4e})'.format(np.mean(mse)))
 
 
-    def plot_weights_3D(self, data, dim, figsize=[10, 5]):
 
-        fig = plt.figure(figsize=figsize)
 
-        ax1 = fig.add_subplot(121, projection='3d', proj_type='ortho')
-        ax2 = fig.add_subplot(122)
 
-        xx, yy = np.meshgrid(np.linspace(0,dim,dim), np.linspace(0,dim,dim))
-        cmp = plt.get_cmap('viridis')
-
-        ax1.plot_surface(xx, yy, data, cmap=cmp)
-        ax1.view_init(10, -45)
-
-        c2 = ax2.imshow(data, cmap=cmp)
-        plt.colorbar(c2, fraction=0.03)
-
-        return fig

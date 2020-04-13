@@ -33,6 +33,7 @@ X_RANGE = [i for i in range(0, 8 )]
 Y_RANGE = [i for i in range(8 , 308 )]
 FREQ_LOW = 0.5
 FREQ_HIGH = 5
+NUM_SPEC_POINTS = 300
 FORCE_RUN = True
 DATA_DIR = ''                # For local usage
 # DATA_DIR = 'C:/Users/labuser/mlmOK_Pytorch/'                # For Omar office desktop usage
@@ -44,5 +45,5 @@ TEST_RATIO = 0.2
 # Running specific
 USE_CPU_ONLY = False
 MODEL_NAME  = None 
-EVAL_MODEL = "20200412_144926"
+EVAL_MODEL = "20200412_185100"
 NUM_PLOT_COMPARE = 10

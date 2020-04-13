@@ -37,16 +37,14 @@ to get dominated by big/strong ones, and model plateaus nearest local min.
 Short term
 - give each lorentz parameter tensor its own fc network with bn
 - implement a peak-searching loss term (using derivative)
-- add gradient graphs for each lorentz param tensor in tb
-- update/fix model evaluation/inference mode
+- update/fix model evaluation/inference mode (default to not saving csv files)
 - fix tensorboard (add external script that takes latest folder and updates batch file)
-- save histogram for each training session at end in model folder (both full and fixed scale)
 
 
 Longer term
 1. Organize plotting and analysis functions into separate module
 2. Find best way to initialize params + best loss function (physics constrained)
-3. Pretrain on single spectrum/transfer learning
+3. Active/transfer learning
 4. Lorentz activation functions
 
 

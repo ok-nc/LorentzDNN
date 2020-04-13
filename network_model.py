@@ -22,14 +22,11 @@ class Forward(nn.Module):
         self.use_conv = flags.use_conv
         self.flags = flags
 
-        # Assert the last entry of the fc_num is a multiple of 3 (This is for Lorentzian part)
         if flags.use_lorentz:
-            # there is 1 extra parameter for lorentzian setting for epsilon_inf
-
-            self.num_spec_point = 300
 
             # Create the constant for mapping the frequency w
-            w_numpy = np.arange(flags.freq_low, flags.freq_high, (flags.freq_high - flags.freq_low) / self.num_spec_point)
+            w_numpy = np.arange(flags.freq_low, flags.freq_high,
+                                (flags.freq_high - flags.freq_low) / self.flags.num_spec_points)
 
             # Create the tensor from numpy array
             cuda = True if torch.cuda.is_available() else False
@@ -44,9 +41,20 @@ class Forward(nn.Module):
         # Linear Layer and Batch_norm Layer definitions here
         self.linears = nn.ModuleList([])
         self.bn_linears = nn.ModuleList([])
-        for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
-            self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
-            self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], track_running_stats=True, affine=True))
+        # for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
+        #     self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
+        #     self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], track_running_stats=True, affine=True))
+
+        self.input_layer = nn.Linear(8,100)
+        self.bn1 = nn.BatchNorm1d(100)
+
+        self.g1 = nn.Linear(100,100)
+        self.g2 = nn.Linear(100, 100)
+        self.g3 = nn.Linear(100, 100)
+
+        self.bn_g1 = nn.BatchNorm1d(100)
+        self.bn_g2 = nn.BatchNorm1d(100)
+        self.bn_g3 = nn.BatchNorm1d(100)
 
         self.lin_w0 = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
         self.lin_wp = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
@@ -84,15 +92,18 @@ class Forward(nn.Module):
         # initialize the out
         # Monitor the gradient list
         # For the linear part
-        for ind, (fc, bn) in enumerate(zip(self.linears, self.bn_linears)):
-            #print(out.size())
-            if ind < len(self.linears) - 0:
-                out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
-            else:
-                out = bn(fc(out))
+        # for ind, (fc, bn) in enumerate(zip(self.linears, self.bn_linears)):
+        #     #print(out.size())
+        #     if ind < len(self.linears) - 0:
+        #         out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
+        #     else:
+        #         out = bn(fc(out))
 
-        # for ind, fc in enumerate(self.linears):
-        #     out = F.relu(fc(out))
+        out = F.relu(self.bn1(self.input_layer(out)))
+
+        out1 = F.relu(self.bn_g1(self.g1(out)))
+        out2 = F.relu(self.bn_g2(self.g2(out)))
+        out3 = F.relu(self.bn_g3(self.g3(out)))
 
         # If use lorentzian layer, pass this output to the lorentzian layer
         if self.use_lorentz:
@@ -121,9 +132,9 @@ class Forward(nn.Module):
             #print(g.size())
             # self.eps_inf = epsilon_inf.data.cpu().numpy()
 
-            w0 = F.relu(self.lin_w0(out).unsqueeze(2))
-            wp = F.relu(self.lin_wp(out).unsqueeze(2))
-            g = F.relu(self.lin_g(out).unsqueeze(2))
+            w0 = F.relu(self.lin_w0(out1).unsqueeze(2))
+            wp = F.relu(self.lin_wp(out2).unsqueeze(2))
+            g = F.relu(self.lin_g(out3).unsqueeze(2))
             # g = torch.sigmoid(self.lin_g(out).unsqueeze(2))
 
 

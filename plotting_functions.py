@@ -17,6 +17,93 @@ from PyQt5.QtWidgets import (QFileDialog, QAbstractItemView, QListView,
                              QTreeView, QApplication, QDialog)
 
 
+def compare_spectra(Ypred, Ytruth, xmin=0.5, xmax=5, num_points=300, T=None, title=None, figsize=[10, 5],
+                    T_num=10, E1=None, E2=None, N=None, K=None, eps_inf=None, label_y1='Pred', label_y2='Truth'):
+    """
+    Function to plot the comparison for predicted spectra and truth spectra
+    :param Ypred:  Predicted spectra, this should be a list of number of dimension 300, numpy
+    :param Ytruth:  Truth spectra, this should be a list of number of dimension 300, numpy
+    :param title: The title of the plot, usually it comes with the time
+    :param figsize: The figure size of the plot
+    :return: The identifier of the figure
+    """
+    # Make the frequency points
+    frequency = xmin + (xmax - xmin) / num_points * np.arange(num_points)
+    f = plt.figure(figsize=figsize)
+    plt.plot(frequency, Ypred, label=label_y1)
+    plt.plot(frequency, Ytruth, label=label_y2)
+    if T is not None:
+        plt.plot(frequency, T, linewidth=1, linestyle='--')
+    if E2 is not None:
+        for i in range(np.shape(E2)[0]):
+            plt.plot(frequency, E2[i, :], linewidth=1, linestyle=':', label="E2" + str(i))
+    if E1 is not None:
+        for i in range(np.shape(E1)[0]):
+            plt.plot(frequency, E1[i, :], linewidth=1, linestyle='-', label="E1" + str(i))
+    if N is not None:
+        plt.plot(frequency, N, linewidth=1, linestyle=':', label="N")
+    if K is not None:
+        plt.plot(frequency, K, linewidth=1, linestyle='-', label="K")
+    if eps_inf is not None:
+        plt.plot(frequency, np.ones(np.shape(frequency)) * eps_inf, label="eps_inf")
+    # plt.ylim([0, 1])
+    plt.legend()
+    plt.xlabel("Frequency (THz)")
+    plt.ylabel("e2")
+    if title is not None:
+        plt.title(title)
+    return f
+
+
+def plot_weights_3D(data, dim, figsize=[10, 5]):
+    fig = plt.figure(figsize=figsize)
+
+    ax1 = fig.add_subplot(121, projection='3d', proj_type='ortho')
+    ax2 = fig.add_subplot(122)
+
+    xx, yy = np.meshgrid(np.linspace(0, dim, dim), np.linspace(0, dim, dim))
+    cmp = plt.get_cmap('viridis')
+
+    ax1.plot_surface(xx, yy, data, cmap=cmp)
+    ax1.view_init(10, -45)
+
+    c2 = ax2.imshow(data, cmap=cmp)
+    plt.colorbar(c2, fraction=0.03)
+
+    return fig
+
+def plotMSELossDistrib(pred, truth):
+
+    # mae, mse = compare_truth_pred(pred_file, truth_file)
+    # mae = np.mean(np.abs(pred - truth), axis=1)
+    mse = np.mean(np.square(pred - truth), axis=1)
+    # mse = loss
+    f = plt.figure(figsize=(12, 6))
+    plt.hist(mse, bins=100)
+    plt.xlabel('Validation Loss')
+    plt.ylabel('Count')
+    plt.suptitle('Model (Avg MSE={:.4e})'.format(np.mean(mse)))
+    # plt.savefig(os.path.join(os.path.abspath(''), 'models',
+    #                          'MSEdistrib_{}.png'.format(flags.model_name)))
+    return f
+    # plt.show()
+    # print('Backprop (Avg MSE={:.4e})'.format(np.mean(mse)))
+
+
+def plotMSELossDistrib_eval(pred_file, truth_file, flags):
+
+    mae, mse = utils.compare_truth_pred(pred_file, truth_file)
+    plt.figure(figsize=(12, 6))
+    plt.hist(mse, bins=100)
+    plt.xlabel('Mean Squared Error')
+    plt.ylabel('cnt')
+    plt.suptitle('(Avg MSE={:.4e})'.format(np.mean(mse)))
+    eval_model_str = flags.eval_model.replace('/','_')
+    plt.savefig(os.path.join(os.path.abspath(''), 'eval',
+                         '{}.png'.format(eval_model_str)))
+    print('(Avg MSE={:.4e})'.format(np.mean(mse)))
+
+
 def ImportColorBarLib():
     """
     Import some libraries that used in a colorbar plot
@@ -58,7 +145,7 @@ def HeatMapBVL(plot_x_name, plot_y_name, title,  save_name='HeatMap.png', HeatMa
                 feature_1_name=None, feature_2_name=None,
                 heat_value_name = 'best_validation_loss'):
     """
-    Plotting a HeatMap of the Best Validation Loss for a batch of hyperswiping thing
+    Plotting a HeatMap of the Best Validation Loss for a batch of hypersweeping thing
     First, copy those models to a folder called "HeatMap"
     Algorithm: Loop through the directory using os.look and find the parameters.txt files that stores the
     :param HeatMap_dir: The directory where the checkpoint folders containing the parameters.txt files are located
@@ -273,15 +360,3 @@ def plot_loss_folder_comparison():
 
         return df
 
-def plotMSELossDistrib_eval(pred_file, truth_file, flags):
-
-    mae, mse = utils.compare_truth_pred(pred_file, truth_file)
-    plt.figure(figsize=(12, 6))
-    plt.hist(mse, bins=100)
-    plt.xlabel('Mean Squared Error')
-    plt.ylabel('cnt')
-    plt.suptitle('(Avg MSE={:.4e})'.format(np.mean(mse)))
-    eval_model_str = flags.eval_model.replace('/','_')
-    plt.savefig(os.path.join(os.path.abspath(''), 'eval',
-                         '{}.png'.format(eval_model_str)))
-    print('(Avg MSE={:.4e})'.format(np.mean(mse)))
