@@ -41,25 +41,39 @@ class Forward(nn.Module):
         # Linear Layer and Batch_norm Layer definitions here
         self.linears = nn.ModuleList([])
         self.bn_linears = nn.ModuleList([])
-        # for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
-        #     self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
-        #     self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], track_running_stats=True, affine=True))
+        for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
+            self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
+            self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], track_running_stats=True, affine=True))
 
-        self.input_layer = nn.Linear(8,100)
-        self.bn1 = nn.BatchNorm1d(100)
+        layer_size = flags.linear[-1]
 
-        self.g1 = nn.Linear(100,100)
-        self.g2 = nn.Linear(100, 100)
-        self.g3 = nn.Linear(100, 100)
+        # # Parallel network test
+        # layer_size = 10
+        # self.input_layer = nn.Linear(4,layer_size)
+        # self.bn1 = nn.BatchNorm1d(layer_size)
+        # self.g1 = nn.Linear(layer_size,layer_size)
+        # self.g2 = nn.Linear(layer_size, layer_size)
+        # self.g3 = nn.Linear(layer_size, layer_size)
+        # self.bn_g1 = nn.BatchNorm1d(layer_size)
+        # self.bn_g2 = nn.BatchNorm1d(layer_size)
+        # self.bn_g3 = nn.BatchNorm1d(layer_size)
 
-        self.bn_g1 = nn.BatchNorm1d(100)
-        self.bn_g2 = nn.BatchNorm1d(100)
-        self.bn_g3 = nn.BatchNorm1d(100)
+        self.lin_w0 = nn.Linear(layer_size, self.flags.num_lorentz_osc, bias=False)
+        self.lin_wp = nn.Linear(layer_size, self.flags.num_lorentz_osc, bias=False)
+        self.lin_g = nn.Linear(layer_size, self.flags.num_lorentz_osc, bias=False)
 
-        self.lin_w0 = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
-        self.lin_wp = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
-        self.lin_g = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
+        self.bn_w0 = nn.BatchNorm1d(self.flags.num_lorentz_osc)
+        self.bn_wp = nn.BatchNorm1d(self.flags.num_lorentz_osc)
+        self.bn_g = nn.BatchNorm1d(self.flags.num_lorentz_osc)
+
+        # self.lin_w0 = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
+        # self.lin_wp = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
+        # self.lin_g = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
+        # torch.nn.init.uniform_(self.lin_w0.weight, a=self.flags.freq_low, b=self.flags.freq_high)
+        # torch.nn.init.uniform_(self.lin_wp.weight, a=0.1, b=1)
         torch.nn.init.uniform_(self.lin_g.weight, a=0.0, b=0.1)
+        # nn.init.xavier_uniform_(self.lin_w0.weight)
+        # nn.init.xavier_uniform_(self.lin_wp.weight)
 
         if flags.use_conv:
             # Conv Layer definitions here
@@ -92,18 +106,17 @@ class Forward(nn.Module):
         # initialize the out
         # Monitor the gradient list
         # For the linear part
-        # for ind, (fc, bn) in enumerate(zip(self.linears, self.bn_linears)):
-        #     #print(out.size())
-        #     if ind < len(self.linears) - 0:
-        #         out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
-        #     else:
-        #         out = bn(fc(out))
+        for ind, (fc, bn) in enumerate(zip(self.linears, self.bn_linears)):
+            #print(out.size())
+            if ind < len(self.linears) - 0:
+                out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
+            else:
+                out = bn(fc(out))
 
-        out = F.relu(self.bn1(self.input_layer(out)))
-
-        out1 = F.relu(self.bn_g1(self.g1(out)))
-        out2 = F.relu(self.bn_g2(self.g2(out)))
-        out3 = F.relu(self.bn_g3(self.g3(out)))
+        # out = F.relu(self.bn1(self.input_layer(out)))
+        # out1 = F.relu(self.bn_g1(self.g1(out)))
+        # out2 = F.relu(self.bn_g2(self.g2(out)))
+        # out3 = F.relu(self.bn_g3(self.g3(out)))
 
         # If use lorentzian layer, pass this output to the lorentzian layer
         if self.use_lorentz:
@@ -132,30 +145,36 @@ class Forward(nn.Module):
             #print(g.size())
             # self.eps_inf = epsilon_inf.data.cpu().numpy()
 
-            w0 = F.relu(self.lin_w0(out1).unsqueeze(2))
-            wp = F.relu(self.lin_wp(out2).unsqueeze(2))
-            g = F.relu(self.lin_g(out3).unsqueeze(2))
-            # g = torch.sigmoid(self.lin_g(out).unsqueeze(2))
+            w0 = F.relu(self.lin_w0(F.relu(out)))
+            wp = F.relu(self.lin_wp(F.relu(out)))
+            g = F.relu(self.lin_g(F.relu(out)))
+            # g = torch.sigmoid(self.lin_g(out))
 
+            w0_out = w0
+            wp_out = wp
+            g_out = g
 
+            w0 = w0.unsqueeze(2) * 1
+            wp = wp.unsqueeze(2) * 1
+            g = g.unsqueeze(2) * 0.1
+
+            # print(lor_params.size())
             # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
-            w0 = w0.expand(out.size(0), self.flags.num_lorentz_osc, self.num_spec_point)
+            w0 = w0.expand(out.size(0), self.flags.num_lorentz_osc, self.flags.num_spec_points)
             wp = wp.expand_as(w0)
             g = g.expand_as(w0)
             w_expand = self.w.expand_as(g)
-            """
-            Testing code
-            #print("c1 size", self.c1.size())
-            #print("w0 size", w0.size())
-            End of testing module
-            """
+
+            # self.w0 = w0
+            # self.g = g
+            # self.w_expand = w_expand
 
             # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
             #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
             e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
-                     add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+                     add(add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))), 0.1))
 
-            # self.e2 = e2.data.cpu().numpy()                 # This is for plotting the imaginary part
+            self.e2 = e2.data.cpu().numpy()                 # This is for plotting the imaginary part
             # self.e1 = e1.data.cpu().numpy()                 # This is for plotting the imaginary part
             """
             debugging purposes: 2019.12.10 Bens code for debugging the addition of epsilon_inf
@@ -205,7 +224,7 @@ class Forward(nn.Module):
             # print("T size",T.size())
             # Last step, sum up except for the 0th dimension of batch_size (deprecated since we sum at e above)
             # T = torch.sum(T, 1).float()
-            return T
+            return T, w0_out, wp_out, g_out
 
         # The normal mode to train without Lorentz
         if self.use_conv:
@@ -220,3 +239,37 @@ class Forward(nn.Module):
         return out
 
 
+def Lorentz_layer(w0, wp, g):
+
+    # This block of code redefines 'self' variables from model
+    normalize_input = True
+    geoboundary = [20, 200, 20, 100]
+    fre_low = 0.5
+    fre_high = 5
+    num_lorentz = 4
+    num_spec_point = 300
+    w_numpy = np.arange(fre_low, fre_high, (fre_high - fre_low) / num_spec_point)
+
+    # Create the tensor from numpy array
+    cuda = True if torch.cuda.is_available() else False
+    if cuda:
+        w = torch.tensor(w_numpy).cuda()
+    else:
+        w = torch.tensor(w_numpy)
+
+    w0 = w0.unsqueeze(2)
+    wp = wp.unsqueeze(2)
+    g = g.unsqueeze(2)
+
+    # Expand them to the make the parallelism, (batch_size, #Lor, #spec_point)
+    w0 = w0.expand(w0.size(0), num_lorentz, num_spec_point)
+    wp = wp.expand_as(w0)
+    g = g.expand_as(w0)
+    w_expand = w.expand_as(g)
+
+    e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
+             add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+
+    e2 = torch.sum(e2, 1)
+    out = e2.float()
+    return out

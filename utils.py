@@ -52,14 +52,16 @@ def tb_extract(model_path=None, keys=['Loss'], anim=False):
         for key in keys:
             if key == 'Loss':
                 for tag in event_acc.Tags()['scalars']:
-                    pd.DataFrame(event_acc.Scalars(tag)).to_csv(model+'/out/'+tag+'.csv')
+                    tag_name = tag.replace('/', '_')
+                    pd.DataFrame(event_acc.Scalars(tag)).to_csv(model+'/out/'+tag_name+'.csv')
                     f = plt.figure(figsize=(12, 6))
                     # print(pd.DataFrame(event_acc.Scalars(tag)))
-                    plt.plot(pd.DataFrame(event_acc.Scalars(tag)).values[:,1],pd.DataFrame(event_acc.Scalars(tag)).values[:,2])
+                    plt.plot(pd.DataFrame(event_acc.Scalars(tag)).values[:,1],
+                             pd.DataFrame(event_acc.Scalars(tag)).values[:,2])
                     plt.xlabel('Epoch')
-                    plt.ylabel(tag)
+                    plt.ylabel(tag_name)
                     plt.yscale('log')
-                    plt.savefig(model+'/out/'+tag+'.png')
+                    plt.savefig(model+'/out/'+tag_name+'.png')
             for tag in event_acc.Tags()['images']:
 
                 if key in tag:

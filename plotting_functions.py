@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
 # from models import evaluate_model
 import seaborn as sns; sns.set()
@@ -35,6 +36,7 @@ def compare_spectra(Ypred, Ytruth, xmin=0.5, xmax=5, num_points=300, T=None, tit
     if T is not None:
         plt.plot(frequency, T, linewidth=1, linestyle='--')
     if E2 is not None:
+
         for i in range(np.shape(E2)[0]):
             plt.plot(frequency, E2[i, :], linewidth=1, linestyle=':', label="E2" + str(i))
     if E1 is not None:
@@ -50,10 +52,42 @@ def compare_spectra(Ypred, Ytruth, xmin=0.5, xmax=5, num_points=300, T=None, tit
     plt.legend()
     plt.xlabel("Frequency (THz)")
     plt.ylabel("e2")
+    plt.grid(b=None)
     if title is not None:
         plt.title(title)
     return f
 
+def compare_Lor_params(w0, wp, g, truth, title=None, figsize=[5, 5]):
+        """
+        Function to plot the comparison for predicted and truth Lorentz parameters
+        :param pred:  Predicted spectra, this should be a list of number of dimension 300, numpy
+        :param truth:  Truth spectra, this should be a list of number of dimension 300, numpy
+        :param title: The title of the plot, usually it comes with the time
+        :param figsize: The figure size of the plot
+        :return: The identifier of the figure
+        """
+        x = np.ones(4)
+        num_osc = int(w0.shape[0])
+        # w0_pr = pred[0:num_osc]
+        # wp_pr = pred[num_osc:num_osc*2]
+        # g_pr = pred[num_osc*2:]
+        w0_pr = w0
+        wp_pr = wp
+        g_pr = g
+        w0_tr = truth[0:num_osc]
+        wp_tr = truth[num_osc:num_osc*2]
+        g_tr = truth[num_osc*2:]*10
+        f = plt.figure(figsize=figsize)
+        marker_size = 14
+        plt.plot(x, w0_tr, markersize=marker_size, color='red', marker='o', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(x, w0_pr, markersize=marker_size, color='red', marker='o', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.plot(2*x, wp_tr, markersize=marker_size, color='blue', marker='s', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(2*x, wp_pr, markersize=marker_size, color='blue', marker='s', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.plot(3*x, g_tr, markersize=marker_size, color='green', marker='v', fillstyle='none', linestyle='None', label='w_0 pr')
+        plt.plot(3*x, g_pr, markersize=marker_size, color='green', marker='v', fillstyle='full', linestyle='None', label='w_0 tr')
+        plt.xlabel("Lorentz Parameters")
+        plt.ylabel("Parameter value")
+        return f
 
 def plot_weights_3D(data, dim, figsize=[10, 5]):
     fig = plt.figure(figsize=figsize)
@@ -69,6 +103,7 @@ def plot_weights_3D(data, dim, figsize=[10, 5]):
 
     c2 = ax2.imshow(data, cmap=cmp)
     plt.colorbar(c2, fraction=0.03)
+    plt.grid(b=None)
 
     return fig
 
