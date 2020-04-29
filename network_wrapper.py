@@ -482,7 +482,7 @@ class Network(object):
         url = tb.launch()
 
         print("Starting pre-training process")
-        pre_train_epoch = 250
+        pre_train_epoch = 500
         for epoch in range(pre_train_epoch):  # Only 200 epochs needed for pretraining
             # print("This is pretrainin Epoch {}".format(epoch))
             # Set to Training Mode

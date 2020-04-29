@@ -145,9 +145,9 @@ class Forward(nn.Module):
             #print(g.size())
             # self.eps_inf = epsilon_inf.data.cpu().numpy()
 
-            w0 = F.relu(self.lin_w0(F.relu(out)))
-            wp = F.relu(self.lin_wp(F.relu(out)))
-            g = F.relu(self.lin_g(F.relu(out)))
+            w0 = self.lin_w0(F.relu(out))
+            wp = self.lin_wp(F.relu(out))
+            g = self.lin_g(F.relu(out))
             # g = torch.sigmoid(self.lin_g(out))
 
             w0_out = w0
@@ -172,7 +172,7 @@ class Forward(nn.Module):
             # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
             #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
             e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
-                     add(add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))), 0.1))
+                     add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
 
             self.e2 = e2.data.cpu().numpy()                 # This is for plotting the imaginary part
             # self.e1 = e1.data.cpu().numpy()                 # This is for plotting the imaginary part
