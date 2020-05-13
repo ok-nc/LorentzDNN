@@ -52,6 +52,7 @@ class Network(object):
         self.log = SummaryWriter(self.ckpt_dir)     # Create a summary writer for tensorboard
         self.best_validation_loss = float('inf')    # Set the BVL to large number
         self.best_pretrain_loss = float('inf')
+        self.running_loss = []
 
     def create_model(self):
         """
@@ -306,6 +307,7 @@ class Network(object):
         self.optm = self.make_optimizer()
         self.lr_scheduler = self.make_lr_scheduler()
 
+        self.model.lin_w0.weight.requires_grad_(False)
 
         # Start a tensorboard session for logging loss and training images
         tb = program.TensorBoard()
@@ -330,7 +332,7 @@ class Network(object):
                     self.record_weight(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
                     self.record_weight(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
                     self.record_grad(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
-                    self.record_grad(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
+                    # self.record_grad(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
                     self.record_grad(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
 
                 if cuda:
@@ -356,8 +358,13 @@ class Network(object):
 
                 # Clip gradients to help with training
                 if self.flags.use_clip:
-                    torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
-                    # torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.flags.grad_clip)
+                    if self.flags.use_clip:
+                        # torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
+                        torch.nn.utils.clip_grad_value_(self.model.lin_w0.parameters(), self.flags.grad_clip)
+                        torch.nn.utils.clip_grad_value_(self.model.lin_g.parameters(), self.flags.grad_clip)
+                        torch.nn.utils.clip_grad_value_(self.model.lin_wp.parameters(), self.flags.grad_clip)
+                        # torch.nn.utils.clip_grad_norm_(self.model.lin_w0.parameters(), self.flags.grad_clip, norm_type=2)
+                        # torch.nn.utils.clip_grad_norm_(self.model.lin_g.parameters(), self.flags.grad_clip, norm_type=2)
 
                 if epoch % self.flags.record_step == 0:
                     if j == 0:
@@ -373,7 +380,7 @@ class Network(object):
                 # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
 
                 train_loss.append(np.copy(loss.cpu().data.numpy()))     # Aggregate the loss
-
+                self.running_loss.append(np.copy(loss.cpu().data.numpy()))
                 # #############################################
                 # # Extra test for err_test < err_train issue #
                 # #############################################
@@ -392,6 +399,8 @@ class Network(object):
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Loss/ Training Loss', train_avg_loss, epoch)
                 self.log.add_scalar('Loss/ Batchnorm Training Loss', train_avg_eval_mode_loss, epoch)
+                self.log.add_scalar('Running Loss', train_avg_eval_mode_loss, epoch)
+
                 # if self.flags.use_lorentz:
                     # for j in range(self.flags.num_plot_compare):
                     #     f = compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
@@ -452,7 +461,7 @@ class Network(object):
                         return None
 
             # Learning rate decay upon plateau
-            self.lr_scheduler.step(train_avg_loss)
+            # self.lr_scheduler.step(train_avg_loss)
 
             if self.flags.use_warm_restart:
                 if epoch % self.flags.lr_warm_restart == 0:
@@ -462,6 +471,7 @@ class Network(object):
 
         # print('Finished')
         self.log.close()
+        np.savetxt(time.strftime('%Y%m%d_%H%M%S', time.localtime())+'.csv', self.running_loss, delimiter=",")
 
     def pretrain(self):
         """
@@ -473,7 +483,7 @@ class Network(object):
             self.model.cuda()
 
         # Construct optimizer after the model moved to GPU
-        self.optm = self.make_optimizer()
+        self.optm = torch.optim.Adam(self.model.parameters(), lr=0.01, weight_decay=1e-3)
         self.lr_scheduler = self.make_lr_scheduler()
 
         # Start a tensorboard session for logging loss and training images
@@ -482,12 +492,13 @@ class Network(object):
         url = tb.launch()
 
         print("Starting pre-training process")
-        pre_train_epoch = 500
+        pre_train_epoch = 250
         for epoch in range(pre_train_epoch):  # Only 200 epochs needed for pretraining
             # print("This is pretrainin Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = []
             train_loss_eval_mode_list = []
+            sim_loss_list = []
 
             self.model.train()
             for j, (geometry, params_truth) in enumerate(self.train_loader):
@@ -524,6 +535,9 @@ class Network(object):
                 pretrain_loss_test += self.make_MSE_loss(wp, params_truth[:, 4:8])  # Get the loss tensor
                 pretrain_loss_test += self.make_MSE_loss(g, params_truth[:, 8:12]*10)  # Get the loss tensor
                 train_loss_eval_mode_list.append(np.copy(pretrain_loss_test.cpu().data.numpy()))
+                pretrain_model_prediction = Lorentz_layer(w0, wp, g / 10)
+                sim_loss = self.make_MSE_loss(pretrain_model_prediction,params_truth[:, 12:])
+                sim_loss_list.append(sim_loss.cpu().data.numpy())
                 self.model.train()
 
                 #######################################
@@ -544,13 +558,16 @@ class Network(object):
             # Calculate the avg loss of training
             train_avg_loss = np.mean(train_loss)
             train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
-
+            sim_loss = np.mean(sim_loss_list)
+            self.running_loss.append(sim_loss)
 
             if epoch % 10 == 0:  # Evaluate every 20 steps
                 # Record the training loss to the tensorboard
                 # train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
                 self.log.add_scalar('Pretrain Loss/ Evaluation Mode', train_avg_eval_mode_loss, epoch)
+                self.log.add_scalar('Simulation Loss', sim_loss, epoch)
+
 
 
                 for j in range(self.flags.num_plot_compare):
@@ -574,8 +591,8 @@ class Network(object):
                 # self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
                 #                     global_step=epoch)
 
-                print("This is Epoch %d, pretraining loss %.5f and eval mode loss is %.5f" % (
-                epoch, train_avg_loss, train_avg_eval_mode_loss))
+                print("This is Epoch %d, pretrain loss %.5f, eval mode loss is %.5f, and sim loss is %.5f" % (
+                epoch, train_avg_loss, train_avg_eval_mode_loss, sim_loss))
 
                 # Model improving, save the model
                 if train_avg_eval_mode_loss < self.best_pretrain_loss:
@@ -600,6 +617,7 @@ class Network(object):
             #     # self.record_weight(name='Pretraining', batch=0, epoch=999)
 
         self.log.close()
+
 
     def evaluate(self, save_dir='eval/'):
         self.load()                             # load the model as constructed

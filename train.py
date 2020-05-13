@@ -48,7 +48,7 @@ def training_from_flag(flags):
 
     # Training process
     print("Start training now...")
-    ntwk.pretrain()
+    # ntwk.pretrain()
     ntwk.train()
 
     # Do the house keeping, write the parameters and put into folder, also use pickle to save the flags object

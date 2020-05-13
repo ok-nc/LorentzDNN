@@ -145,9 +145,9 @@ class Forward(nn.Module):
             #print(g.size())
             # self.eps_inf = epsilon_inf.data.cpu().numpy()
 
-            w0 = self.lin_w0(F.relu(out))
-            wp = self.lin_wp(F.relu(out))
-            g = self.lin_g(F.relu(out))
+            w0 = F.relu(self.bn_w0(self.lin_w0(F.relu(out))))
+            wp = F.relu(self.bn_wp(self.lin_wp(F.relu(out))))
+            g = F.relu(self.bn_g(self.lin_g(F.relu(out))))
             # g = torch.sigmoid(self.lin_g(out))
 
             w0_out = w0
