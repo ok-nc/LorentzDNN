@@ -60,7 +60,6 @@ def evaluate_all(models_dir="models"):
             evaluate_from_model(os.path.join(models_dir, file))
     return None
 
-
 if __name__ == '__main__':
     # Read the flag, however only the flags.eval_model is used and others are not used
     useless_flags = flagreader.read_flag()

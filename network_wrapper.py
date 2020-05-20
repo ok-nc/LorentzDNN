@@ -11,7 +11,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
-#from torchsummary import summary
+from torchsummary import summary
 from torch.optim import lr_scheduler
 from torchviz import make_dot
 from network_model import Lorentz_layer
@@ -60,8 +60,11 @@ class Network(object):
         :return: the created nn module
         """
         model = self.model_fn(self.flags)
-        #summary(model, input_size=(1, 8))
+        summary(model, input_data=(8,))
         print(model)
+        pytorch_total_params = sum(p.numel() for p in model.parameters())
+        pytorch_total_params_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print('There are %d trainable out of %d total parameters' %(pytorch_total_params, pytorch_total_params_train))
         return model
 
     def make_MSE_loss(self, logit=None, labels=None):
@@ -236,6 +239,13 @@ class Network(object):
         """
         self.model = torch.load(os.path.join(self.ckpt_dir, 'best_model.pt'))
 
+    def load_pretrain(self):
+        """
+        Loading the model from the check point folder with name best_model.pt
+        :return:
+        """
+        self.model = torch.load(os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
+
     def record_weight(self, name='Weights', layer=None, batch=999, epoch=999):
         """
         Record the weights for a specific layer to tensorboard (save to file if desired)
@@ -292,6 +302,7 @@ class Network(object):
             self.log.add_figure(tag='1_Gradients_' + name + '_Layer'.format(1),
                                 figure=f, global_step=epoch)
 
+
     def train(self):
         """
         The major training function. This starts the training using parameters given in the flags
@@ -307,7 +318,7 @@ class Network(object):
         self.optm = self.make_optimizer()
         self.lr_scheduler = self.make_lr_scheduler()
 
-        self.model.lin_w0.weight.requires_grad_(False)
+        # self.model.lin_w0.weight.requires_grad_(False)
 
         # Start a tensorboard session for logging loss and training images
         tb = program.TensorBoard()
@@ -316,6 +327,8 @@ class Network(object):
         print("TensorBoard started at %s" % url)
         # pid = os.getpid()
         # print("PID = %d; use 'kill %d' to quit" % (pid, pid))
+
+
 
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
@@ -328,12 +341,17 @@ class Network(object):
 
                 # TODO: Create loop for this
                 if epoch % self.flags.record_step == 0:
+                    self.record_weight(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
+                    self.record_weight(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
                     self.record_weight(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
                     self.record_weight(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
                     self.record_weight(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
                     self.record_grad(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
-                    # self.record_grad(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
+                    self.record_grad(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
                     self.record_grad(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
+                    self.record_grad(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
+                    self.record_grad(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
+
 
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
@@ -353,18 +371,22 @@ class Network(object):
                                                                                            directory=self.ckpt_dir)
                 loss.backward()
 
+
+
                 # Calculate the backward gradients
                 # self.record_weight(name='after_backward', batch=j, epoch=epoch)
 
                 # Clip gradients to help with training
                 if self.flags.use_clip:
                     if self.flags.use_clip:
-                        # torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
-                        torch.nn.utils.clip_grad_value_(self.model.lin_w0.parameters(), self.flags.grad_clip)
-                        torch.nn.utils.clip_grad_value_(self.model.lin_g.parameters(), self.flags.grad_clip)
-                        torch.nn.utils.clip_grad_value_(self.model.lin_wp.parameters(), self.flags.grad_clip)
+                        torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.flags.grad_clip)
+                        # torch.nn.utils.clip_grad_value_(self.model.lin_w0.parameters(), self.flags.grad_clip)
+                        # torch.nn.utils.clip_grad_value_(self.model.lin_g.parameters(), self.flags.grad_clip)
+                        # torch.nn.utils.clip_grad_value_(self.model.lin_wp.parameters(), self.flags.grad_clip)
                         # torch.nn.utils.clip_grad_norm_(self.model.lin_w0.parameters(), self.flags.grad_clip, norm_type=2)
                         # torch.nn.utils.clip_grad_norm_(self.model.lin_g.parameters(), self.flags.grad_clip, norm_type=2)
+                        # torch.nn.utils.clip_grad_norm_(self.model.lin_wp.parameters(), self.flags.grad_clip, norm_type=2)
 
                 if epoch % self.flags.record_step == 0:
                     if j == 0:
@@ -399,7 +421,7 @@ class Network(object):
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Loss/ Training Loss', train_avg_loss, epoch)
                 self.log.add_scalar('Loss/ Batchnorm Training Loss', train_avg_eval_mode_loss, epoch)
-                self.log.add_scalar('Running Loss', train_avg_eval_mode_loss, epoch)
+                # self.log.add_scalar('Running Loss', train_avg_eval_mode_loss, epoch)
 
                 # if self.flags.use_lorentz:
                     # for j in range(self.flags.num_plot_compare):
@@ -461,7 +483,7 @@ class Network(object):
                         return None
 
             # Learning rate decay upon plateau
-            # self.lr_scheduler.step(train_avg_loss)
+            self.lr_scheduler.step(train_avg_loss)
 
             if self.flags.use_warm_restart:
                 if epoch % self.flags.lr_warm_restart == 0:
@@ -471,7 +493,7 @@ class Network(object):
 
         # print('Finished')
         self.log.close()
-        np.savetxt(time.strftime('%Y%m%d_%H%M%S', time.localtime())+'.csv', self.running_loss, delimiter=",")
+        # np.savetxt(time.strftime('%Y%m%d_%H%M%S', time.localtime())+'.csv', self.running_loss, delimiter=",")
 
     def pretrain(self):
         """
@@ -492,8 +514,8 @@ class Network(object):
         url = tb.launch()
 
         print("Starting pre-training process")
-        pre_train_epoch = 250
-        for epoch in range(pre_train_epoch):  # Only 200 epochs needed for pretraining
+        pre_train_epoch = 300
+        for epoch in range(pre_train_epoch):
             # print("This is pretrainin Epoch {}".format(epoch))
             # Set to Training Mode
             train_loss = []
@@ -506,6 +528,8 @@ class Network(object):
                     # print(geometry)
                 # Record weights and gradients to tb
                 if epoch % self.flags.record_step == 0:
+                    self.record_weight(name='Pretrain_lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
+                    self.record_weight(name='Pretrain_lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
                     self.record_weight(name='Pretrain w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
                     self.record_weight(name='Pretrain w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
                     self.record_weight(name='Pretrain g', layer=self.model.lin_g, batch=j, epoch=epoch)
@@ -609,12 +633,12 @@ class Network(object):
             self.lr_scheduler.step(train_avg_loss)
 
             # Save pretrained model at end
-            # if epoch == 10:
-            #     # weights = self.model.linears[-1].weight.cpu().data.numpy()
-            #     # # print(weights.shape)
-            #     # np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
-            #     torch.save(self.model, os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
-            #     # self.record_weight(name='Pretraining', batch=0, epoch=999)
+            if epoch == pre_train_epoch-1:
+                # weights = self.model.linears[-1].weight.cpu().data.numpy()
+                # # print(weights.shape)
+                # np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
+                torch.save(self.model, os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
+                # self.record_weight(name='Pretraining', batch=0, epoch=999)
 
         self.log.close()
 

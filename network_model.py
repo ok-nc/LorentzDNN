@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from torch import pow, add, mul, div, sqrt
+from okFunc import scale_grad
 
 class Forward(nn.Module):
     def __init__(self, flags):
@@ -145,10 +146,13 @@ class Forward(nn.Module):
             #print(g.size())
             # self.eps_inf = epsilon_inf.data.cpu().numpy()
 
+
+
             w0 = F.relu(self.bn_w0(self.lin_w0(F.relu(out))))
             wp = F.relu(self.bn_wp(self.lin_wp(F.relu(out))))
             g = F.relu(self.bn_g(self.lin_g(F.relu(out))))
             # g = torch.sigmoid(self.lin_g(out))
+
 
             w0_out = w0
             wp_out = wp
@@ -171,8 +175,14 @@ class Forward(nn.Module):
 
             # e1 = div(mul(pow(wp, 2), add(pow(w0, 2), -pow(w_expand, 2))),
             #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
-            e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
-                     add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+            num = mul(pow(wp, 2), mul(w_expand, g))
+            denom = add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2)))
+            # denom = scale_grad.apply(denom)
+            e2 = div(num, denom)
+
+            # e2 = mul(add(num, denom),0.01)
+
+            # e2 = scale_grad.apply(e2)
 
             self.e2 = e2.data.cpu().numpy()                 # This is for plotting the imaginary part
             # self.e1 = e1.data.cpu().numpy()                 # This is for plotting the imaginary part
@@ -267,8 +277,15 @@ def Lorentz_layer(w0, wp, g):
     g = g.expand_as(w0)
     w_expand = w.expand_as(g)
 
-    e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
-             add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+    # e2 = div(mul(pow(wp, 2), mul(w_expand, g)),
+    #          add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2))))
+
+    num = mul(pow(wp, 2), mul(w_expand, g))
+    denom = add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2)))
+    # denom = scale_grad.apply(denom)
+    e2 = div(num, denom)
+    # e2 = mul(add(num, denom), 0.01)
+
 
     e2 = torch.sum(e2, 1)
     out = e2.float()
