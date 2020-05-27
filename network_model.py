@@ -248,6 +248,31 @@ class Forward(nn.Module):
             out = out.squeeze()
         return out
 
+# class div_NN(nn.Module):
+#     def __init__(self, flags):
+#         super(Forward, self).__init__()
+#
+#         linear_layers = [2, 50, 50, 50, 1]
+#
+#         self.linears = nn.ModuleList([])
+#         self.bn_linears = nn.ModuleList([])
+#         for ind, fc_num in enumerate(linear_layers[0:-1]):  # Excluding the last one as we need intervals
+#             self.linears.append(nn.Linear(fc_num, linear_layers[ind + 1], bias=True))
+#             self.bn_linears.append(nn.BatchNorm1d(linear_layers[ind + 1], track_running_stats=True, affine=True))
+#
+#
+#     def forward(self, input):
+#
+#         out = input
+#
+#         for ind, (fc, bn) in enumerate(zip(self.linears, self.bn_linears)):
+#             #print(out.size())
+#             if ind < len(self.linears) - 0:
+#                 out = F.relu(bn(fc(out)))                                   # ReLU + BN + Linear
+#             else:
+#                 out = bn(fc(out))
+#
+#         return out
 
 def Lorentz_layer(w0, wp, g):
 

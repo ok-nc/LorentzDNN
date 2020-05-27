@@ -62,64 +62,69 @@ def visualize_loss(model_dir):
     # print(ntwk.model.lin_g.weight.data[1, 3])
 
     dim = 25
-    dx = 0.01
-    dy = 0.1
+    dx = 0.2
+    dy = 0.2
 
-    wx = 1
-    wy = 12
+    wx = 0
+    wy = 11
 
-    wx2 = 2
-    wy2 = 24
+    wx2 = 3
+    wy2 = 10
 
     # 1D loop
-    # loss_1D = np.empty(2*dim+1)
-    # x = np.arange(-dim*dx, (dim+1)*dx, dx)
-    # # ntwk.model.lin_w0.weight.data[wx2, wy2] += 5
-    # for i,j in enumerate(x):
-    #     print(str(i)+' of '+str(len(x)))
-    #     # print(ntwk.model.lin_w0.weight.data[2, 10])
-    #     eval_loss = []
-    #
-    #     ntwk.model.lin_w0.weight.data[wx, wy] += j
-    #     with torch.no_grad():
-    #         for ind, (geometry, spectra) in enumerate(test_loader):
-    #             if cuda:
-    #                 geometry = geometry.cuda()
-    #                 spectra = spectra.cuda()
-    #             logit, w0, wp, g = ntwk.model(geometry)
-    #             loss = ntwk.make_custom_loss(logit, spectra[:, 12:])
-    #             eval_loss.append(np.copy(loss.cpu().data.numpy()))
-    #     ntwk.model.lin_g.weight.data[wx, wy] -= j
-    #     eval_avg_loss = np.mean(eval_loss)
-    #     # print(str(j))
-    #     # print(eval_avg_loss)
-    #     loss_1D[i] = eval_avg_loss
+    loss_1D = np.empty(2*dim+1)
+    x = np.arange(-dim*dx, (dim+1)*dx, dx)
+    # ntwk.model.lin_w0.weight.data[wx2, wy2] += 5
+    for i,j in enumerate(x):
+        print(str(i)+' of '+str(len(x)))
+        # print(ntwk.model.lin_w0.weight.data[2, 10])
+        eval_loss = []
+
+        ntwk.model.lin_g.weight.data[wx, wy] += j
+        with torch.no_grad():
+            for ind, (geometry, spectra) in enumerate(test_loader):
+                if cuda:
+                    geometry = geometry.cuda()
+                    spectra = spectra.cuda()
+                logit, w0, wp, g = ntwk.model(geometry)
+                loss = ntwk.make_custom_loss(logit, spectra[:, 12:])
+                eval_loss.append(np.copy(loss.cpu().data.numpy()))
+        ntwk.model.lin_g.weight.data[wx, wy] -= j
+        eval_avg_loss = np.mean(eval_loss)
+        # print(str(j))
+        # print(eval_avg_loss)
+        loss_1D[i] = eval_avg_loss
 
     # # 2D loop
-    loss_surface = np.empty((2*dim+1, 2*dim+1))
-    x = np.arange(-dim * dx, (dim + 1) * dx, dx)
-    y = np.arange(-dim * dy, (dim + 1) * dy, dy)
-    for i, j in enumerate(x):
-        print(str(i) + ' of ' + str(len(x)))
-        for k, l in enumerate(y):
+    # loss_surface = np.empty((2*dim+1, 2*dim+1))
+    # x = np.arange(-dim * dx, (dim + 1) * dx, dx)
+    # y = np.arange(-dim * dy, (dim + 1) * dy, dy)
+    # for i, j in enumerate(x):
+    #     print(str(i) + ' of ' + str(len(x)))
+    #     for k, l in enumerate(y):
+    #
+    #         eval_loss = []
+    #         ntwk.model.lin_g.weight.data[wx, wy] += j
+    #         ntwk.model.lin_g.weight.data[wx2, wy2] += l
+    #         with torch.no_grad():
+    #             for ind, (geometry, spectra) in enumerate(test_loader):
+    #                 if cuda:
+    #                     geometry = geometry.cuda()
+    #                     spectra = spectra.cuda()
+    #                 logit, w0, wp, g = ntwk.model(geometry)
+    #                 loss = ntwk.make_custom_loss(logit, spectra[:, 12:])
+    #                 eval_loss.append(np.copy(loss.cpu().data.numpy()))
+    #         ntwk.model.lin_g.weight.data[wx, wy] -= j
+    #         ntwk.model.lin_g.weight.data[wx2, wy2] -= l
+    #         eval_avg_loss = np.mean(eval_loss)
+    #         # print(str(j))
+    #         # print(eval_avg_loss)
+    #         loss_surface[i,k] = eval_avg_loss
+    # #
+    # np.savetxt('Loss_Surface_'+'g_('+str(wx)+','+str(wy)+')_dim'+str(dim)+'_dx'+str(dx)+
+    #            '_g_('+str(wx2)+','+str(wy2)+')_dim'+str(dim)+'_dy'+str(dy)+'.csv',
+    #            loss_surface, delimiter=",")
 
-            eval_loss = []
-            ntwk.model.lin_w0.weight.data[wx, wy] += j
-            ntwk.model.lin_g.weight.data[wx2, wy2] += l
-            with torch.no_grad():
-                for ind, (geometry, spectra) in enumerate(test_loader):
-                    if cuda:
-                        geometry = geometry.cuda()
-                        spectra = spectra.cuda()
-                    logit, w0, wp, g = ntwk.model(geometry)
-                    loss = ntwk.make_custom_loss(logit, spectra[:, 12:])
-                    eval_loss.append(np.copy(loss.cpu().data.numpy()))
-            ntwk.model.lin_w0.weight.data[wx, wy] -= j
-            ntwk.model.lin_g.weight.data[wx2, wy2] -= l
-            eval_avg_loss = np.mean(eval_loss)
-            # print(str(j))
-            # print(eval_avg_loss)
-            loss_surface[i,k] = eval_avg_loss
 
     # print(loss_surface)
     # np.savetxt('Loss_Surface.csv', loss_surface, delimiter=",")
@@ -128,16 +133,14 @@ def visualize_loss(model_dir):
     #            array, delimiter=",")
     #
     #
-    # plt.switch_backend('Qt4Agg')
-    # fig = plt.figure()
-    # ax1 = fig.add_subplot(111)
-    # plt.plot(x,loss_1D)
-    # plt.show(block=True)
-    # plt.ion()
+    plt.switch_backend('Qt4Agg')
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    plt.plot(x,loss_1D)
+    plt.show(block=True)
+    plt.ion()
 
-    np.savetxt('Loss_Surface_'+'w0_('+str(wx)+','+str(wy)+')_dim'+str(dim)+'_dx'+str(dx)+
-               '_g_('+str(wx2)+','+str(wy2)+')_dim'+str(dim)+'_dy'+str(dy)+'.csv',
-               loss_surface, delimiter=",")
+
 
 
     # data1 = ntwk.model.lin_g.weight.cpu().data.numpy()
