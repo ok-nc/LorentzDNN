@@ -60,7 +60,7 @@ class Network(object):
         :return: the created nn module
         """
         model = self.model_fn(self.flags)
-        summary(model, input_data=(8,))
+        # summary(model, input_data=(8,))
         print(model)
         pytorch_total_params = sum(p.numel() for p in model.parameters())
         pytorch_total_params_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -219,6 +219,7 @@ class Network(object):
         1. ReduceLROnPlateau (decrease lr when validation error stops improving
         :return:
         """
+        # return lr_scheduler.StepLR(optimizer=self.optm, step_size=50, gamma=0.75, last_epoch=-1)
         return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm, mode='min',
                                         factor=self.flags.lr_decay_rate,
                                           patience=10, verbose=True, threshold=1e-4)
@@ -318,7 +319,11 @@ class Network(object):
         self.optm = self.make_optimizer()
         self.lr_scheduler = self.make_lr_scheduler()
 
-        # self.model.lin_w0.weight.requires_grad_(False)
+        # self.model.divNN = torch.load('/home/omar/PycharmProjects/mlmOK_Pytorch/pretrained_div_network.pt')
+        # for param in self.model.divNN.parameters():
+        #     param.requires_grad = False
+
+        # div_op = torch.optim.Adam(self.model.divNN.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
 
         # Start a tensorboard session for logging loss and training images
         tb = program.TensorBoard()
@@ -327,8 +332,6 @@ class Network(object):
         print("TensorBoard started at %s" % url)
         # pid = os.getpid()
         # print("PID = %d; use 'kill %d' to quit" % (pid, pid))
-
-
 
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
@@ -369,6 +372,7 @@ class Network(object):
                     im = make_dot(loss, params=dict(self.model.named_parameters())).render("Model Graph",
                                                                                            format="png",
                                                                                            directory=self.ckpt_dir)
+                # print(loss)
                 loss.backward()
 
 
@@ -482,8 +486,46 @@ class Network(object):
                               (epoch, self.best_validation_loss))
                         return None
 
-            # Learning rate decay upon plateau
+            # # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
+            # # self.lr_scheduler.step()
+
+            # if train_avg_loss > 10:
+            #     self.model.delta = 0.1
+            #     for param_group in self.optm.param_groups:
+            #         param_group['lr'] = 1e-4
+            #         # print('Setting learning rate to 0.01')
+            # if train_avg_loss < 10 and train_avg_loss > 5:
+            #     self.model.delta = 0.05
+            #     for param_group in self.optm.param_groups:
+            #         param_group['lr'] = 5e-4
+            #         # print('Setting learning rate to 5e-4')
+            # if train_avg_loss < 5 and train_avg_loss > 0.5:
+            #     self.model.delta = 0.01
+            #     for param_group in self.optm.param_groups:
+            #         param_group['lr'] = 1e-3
+            #         # print('Setting learning rate to 0.001')
+            # if train_avg_loss < 0.5 and train_avg_loss > 0.2:
+            #     self.model.delta = 0.005
+            #     for param_group in self.optm.param_groups:
+            #         param_group['lr'] = 5e-3
+            #         # print('Setting learning rate to 0.005')
+            # if train_avg_loss < 0.2:
+            #     self.model.delta = 0.001
+            #     for param_group in self.optm.param_groups:
+            #         param_group['lr'] = 1e-2
+            #         # print('Setting learning rate to 0.01')
+
+
+
+            # if epoch > 1:
+            #     self.model.delta = 0.01
+            # elif epoch > 25:
+            #     self.model.delta = 0.01
+            # elif epoch > 50:
+            #     self.model.delta = 0.01
+            # elif epoch > 100:
+            #     self.model.delta = 0.01
 
             if self.flags.use_warm_restart:
                 if epoch % self.flags.lr_warm_restart == 0:

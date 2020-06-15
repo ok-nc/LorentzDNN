@@ -5,7 +5,7 @@ Parameter file for specifying the running parameters for forward model
 USE_LORENTZ = True
 NUM_LORENTZ_OSC = 4
 USE_CONV = False                         # Whether use upconv layer when not using lorentz @Omar
-LINEAR = [8, 100, 100]
+LINEAR = [8, 30, 30]
 # If the Lorentzian is False
 CONV_OUT_CHANNEL = [4, 4, 4]
 CONV_KERNEL_SIZE = [8, 5, 5]
@@ -14,10 +14,10 @@ CONV_STRIDE = [2, 1, 1]
 # Optimization parameters
 OPTIM = "Adam"
 REG_SCALE = 1e-3
-BATCH_SIZE = 1024
-EVAL_STEP = 10
-RECORD_STEP = 10
-TRAIN_STEP = 500
+BATCH_SIZE = 512
+EVAL_STEP = 20
+RECORD_STEP = 20
+TRAIN_STEP = 5000
 LEARN_RATE = 1e-2
 # DECAY_STEP = 25000 # This is for step decay, however we are using dynamic decaying
 LR_DECAY_RATE = 0.5

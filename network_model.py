@@ -22,6 +22,7 @@ class Forward(nn.Module):
         self.use_lorentz = flags.use_lorentz
         self.use_conv = flags.use_conv
         self.flags = flags
+        self.delta = 1
 
         if flags.use_lorentz:
 
@@ -44,6 +45,8 @@ class Forward(nn.Module):
         self.bn_linears = nn.ModuleList([])
         for ind, fc_num in enumerate(flags.linear[0:-1]):               # Excluding the last one as we need intervals
             self.linears.append(nn.Linear(fc_num, flags.linear[ind + 1], bias=True))
+            # torch.nn.init.uniform_(self.linears[ind].weight, a=1, b=2)
+
             self.bn_linears.append(nn.BatchNorm1d(flags.linear[ind + 1], track_running_stats=True, affine=True))
 
         layer_size = flags.linear[-1]
@@ -71,10 +74,15 @@ class Forward(nn.Module):
         # self.lin_wp = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
         # self.lin_g = nn.Linear(self.flags.linear[-1], self.flags.num_lorentz_osc, bias=False)
         # torch.nn.init.uniform_(self.lin_w0.weight, a=self.flags.freq_low, b=self.flags.freq_high)
-        # torch.nn.init.uniform_(self.lin_wp.weight, a=0.1, b=1)
+        # torch.nn.init.uniform_(self.lin_w0.weight, a=2, b=4)
+        # torch.nn.init.uniform_(self.lin_wp.weight, a=2, b=4)
         torch.nn.init.uniform_(self.lin_g.weight, a=0.0, b=0.1)
         # nn.init.xavier_uniform_(self.lin_w0.weight)
         # nn.init.xavier_uniform_(self.lin_wp.weight)
+
+        # self.divNN = div_NN()
+        # for param in self.divNN.parameters():
+        #     param.requires_grad = False
 
         if flags.use_conv:
             # Conv Layer definitions here
@@ -178,11 +186,24 @@ class Forward(nn.Module):
             num = mul(pow(wp, 2), mul(w_expand, g))
             denom = add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2)))
             # denom = scale_grad.apply(denom)
-            e2 = div(num, denom)
+            constrained_denom = add(denom, self.delta)
+            e2 = div(num, constrained_denom)
 
+            # e2 = div(num, denom)
             # e2 = mul(add(num, denom),0.01)
-
             # e2 = scale_grad.apply(e2)
+
+            # # This code block is for a division NN implementation
+            # # -------------------------------------------------------------
+            # num1 = num.view(-1,1)
+            # denom1 = denom.view(-1,1)
+            # print(num1)
+            # print(denom1)
+            # input = torch.cat((num1, denom1), dim=1)
+            # div_out = self.divNN(input.float())
+            # print('div out is ',div_out)
+            # e2 = div_out.view(-1, self.flags.num_lorentz_osc, self.flags.num_spec_points)
+            # # -------------------------------------------------------------
 
             self.e2 = e2.data.cpu().numpy()                 # This is for plotting the imaginary part
             # self.e1 = e1.data.cpu().numpy()                 # This is for plotting the imaginary part
@@ -249,10 +270,10 @@ class Forward(nn.Module):
         return out
 
 # class div_NN(nn.Module):
-#     def __init__(self, flags):
-#         super(Forward, self).__init__()
+#     def __init__(self):
+#         super(div_NN, self).__init__()
 #
-#         linear_layers = [2, 50, 50, 50, 1]
+#         linear_layers = [2, 1000, 1]
 #
 #         self.linears = nn.ModuleList([])
 #         self.bn_linears = nn.ModuleList([])
@@ -272,7 +293,7 @@ class Forward(nn.Module):
 #             else:
 #                 out = bn(fc(out))
 #
-#         return out
+#         return out.float()
 
 def Lorentz_layer(w0, wp, g):
 
