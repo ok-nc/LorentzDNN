@@ -186,10 +186,10 @@ class Forward(nn.Module):
             num = mul(pow(wp, 2), mul(w_expand, g))
             denom = add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2)))
             # denom = scale_grad.apply(denom)
-            constrained_denom = add(denom, self.delta)
-            e2 = div(num, constrained_denom)
+            # constrained_denom = add(denom, self.delta)
+            # e2 = div(num, constrained_denom)
 
-            # e2 = div(num, denom)
+            e2 = div(num, denom)
             # e2 = mul(add(num, denom),0.01)
             # e2 = scale_grad.apply(e2)
 
