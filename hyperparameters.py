@@ -14,10 +14,10 @@ CONV_STRIDE = [2, 1, 1]
 # Optimization parameters
 OPTIM = "Adam"
 REG_SCALE = 1e-3
-BATCH_SIZE = 512
-EVAL_STEP = 20
-RECORD_STEP = 20
-TRAIN_STEP = 5000
+BATCH_SIZE = 1024
+EVAL_STEP = 25
+RECORD_STEP = 50
+TRAIN_STEP = 2000
 LEARN_RATE = 1e-2
 # DECAY_STEP = 25000 # This is for step decay, however we are using dynamic decaying
 LR_DECAY_RATE = 0.5
@@ -27,6 +27,7 @@ GRAD_CLIP = 1
 USE_WARM_RESTART = False
 LR_WARM_RESTART = 600
 ERR_EXP = 2
+DELTA = 0.5
 
 # Data Specific parameters
 X_RANGE = [i for i in range(0, 8 )]

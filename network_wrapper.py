@@ -490,31 +490,37 @@ class Network(object):
             self.lr_scheduler.step(train_avg_loss)
             # # self.lr_scheduler.step()
 
-            # if train_avg_loss > 10:
-            #     self.model.delta = 0.1
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = 1e-4
-            #         # print('Setting learning rate to 0.01')
-            # if train_avg_loss < 10 and train_avg_loss > 5:
-            #     self.model.delta = 0.05
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = 5e-4
-            #         # print('Setting learning rate to 5e-4')
-            # if train_avg_loss < 5 and train_avg_loss > 0.5:
-            #     self.model.delta = 0.01
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = 1e-3
-            #         # print('Setting learning rate to 0.001')
-            # if train_avg_loss < 0.5 and train_avg_loss > 0.2:
-            #     self.model.delta = 0.005
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = 5e-3
-            #         # print('Setting learning rate to 0.005')
-            # if train_avg_loss < 0.2:
-            #     self.model.delta = 0.001
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = 1e-2
-            #         # print('Setting learning rate to 0.01')
+
+            if train_avg_loss < 35 and self.model.delta > 0.1:
+                self.model.delta = 0.1
+                for param_group in self.optm.param_groups:
+                    param_group['lr'] = param_group['lr']*0.5
+                    print('Setting delta to '+str(self.model.delta))
+                    print('Setting learning rate to '+str(param_group['lr']))
+            if train_avg_loss < 10 and train_avg_loss > 5 and self.model.delta == 0.1:
+                self.model.delta = 0.05
+                for param_group in self.optm.param_groups:
+                    param_group['lr'] = param_group['lr']*0.5
+                    print('Setting delta to ' + str(self.model.delta))
+                    print('Setting learning rate to '+str(param_group['lr']))
+            if train_avg_loss < 5 and train_avg_loss > 0.5 and self.model.delta == 0.05:
+                self.model.delta = 0.01
+                for param_group in self.optm.param_groups:
+                    param_group['lr'] = param_group['lr']*0.5
+                    print('Setting delta to ' + str(self.model.delta))
+                    print('Setting learning rate to '+str(param_group['lr']))
+            if train_avg_loss < 0.5 and train_avg_loss > 0.2 and self.model.delta == 0.01:
+                self.model.delta = 0.005
+                for param_group in self.optm.param_groups:
+                    param_group['lr'] = param_group['lr']*0.5
+                    print('Setting delta to ' + str(self.model.delta))
+                    print('Setting learning rate to '+str(param_group['lr']))
+            if train_avg_loss < 0.2 and self.model.delta == 0.005:
+                self.model.delta = 0.001
+                for param_group in self.optm.param_groups:
+                    param_group['lr'] = param_group['lr']*0.5
+                    print('Setting delta to ' + str(self.model.delta))
+                    print('Setting learning rate to '+str(param_group['lr']))
 
 
 

@@ -55,6 +55,7 @@ def read_flag():
                         help='Use warm restart learning rate scheduling')
     parser.add_argument('--lr-warm-restart', default=LR_WARM_RESTART, type=int, help='# steps before warm restart')
     parser.add_argument('--err-exp', default=ERR_EXP, type=int, help='# error exponent for regularization')
+    parser.add_argument('--delta', default=DELTA, type=float, help='# error term to constrain lorentzian denom')
 
     # Data specific Params
     parser.add_argument('--x-range', type=list, default=X_RANGE, help='columns of input parameters')

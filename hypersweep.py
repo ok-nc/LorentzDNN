@@ -32,7 +32,7 @@ if __name__ == '__main__':
     model_name = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     # model_description = "Smooth_L1_Loss_Warm_Restart"
     # model_description = "MSE_Loss_Grad_Clip"
-    model_description = "lr_sweep_"
+    model_description = "delta_"
     # for restart in [200, 500]:
     #     for exp in [4,8]:
     #         for clip in [20]:
@@ -50,9 +50,11 @@ if __name__ == '__main__':
     #     flags.linear = [8, 100, 100, 100]
     #     flags.model_name = model_name + '_' + model_description + "_run" + str(i + 1)
     #     train.training_from_flag(flags)
-    for lr in [1e-3, 1e-2]:
-        for i in range(3):
-            flags.linear = [8, 100, 100, 100]
-            flags.lr = lr
-            flags.model_name = model_name + '_' + model_description + str(lr) + "_run"+str(i)
-            train.training_from_flag(flags)
+    for delta_0 in [0.5, 0.1, 0.05, 0.01]:
+        for lr_0 in [1e-4, 1e-3, 1e-2, 1e-1]:
+            for i in range(3):
+                # flags.linear = [8, 30, 30]
+                flags.lr = lr_0
+                flags.delta = delta_0
+                flags.model_name = model_name + '_' + model_description + str(delta_0) + '_lr_' + str(lr_0) +"_run"+str(i)
+                train.training_from_flag(flags)

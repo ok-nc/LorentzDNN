@@ -22,7 +22,7 @@ class Forward(nn.Module):
         self.use_lorentz = flags.use_lorentz
         self.use_conv = flags.use_conv
         self.flags = flags
-        self.delta = 1
+        self.delta = self.flags.delta
 
         if flags.use_lorentz:
 
