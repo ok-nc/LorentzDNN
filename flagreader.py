@@ -3,6 +3,7 @@ This file serves to hold helper functions that is related to the "Flag" object w
 all the parameters during training and inference
 """
 # Built-in
+
 import argparse
 import pickle
 import os
@@ -18,8 +19,11 @@ def read_flag():
     This function is to write the read the flags from a parameter file and put them in formats
     :return: flags: a struct where all the input params are stored
     """
+
     parser = argparse.ArgumentParser()
+
     # Model Architectural Params
+
     parser.add_argument('--use-lorentz', type=bool, default=USE_LORENTZ,
                         help='The boolean flag that indicate whether we use lorentz oscillators')
     parser.add_argument('--num-lorentz-osc', type=int, default=NUM_LORENTZ_OSC,
@@ -78,8 +82,9 @@ def read_flag():
     parser.add_argument('--num-plot-compare', type=int, default=NUM_PLOT_COMPARE,
                         help='#Plots to store in tensorboard during training for spectra compare')
     parser.add_argument('--model-name', default=MODEL_NAME, type=str, help='name of the model')
-    flags = parser.parse_args()  # This is for command line version of the code
-    # flags = parser.parse_args(args = [])#This is for jupyter notebook version of the code
+
+    # flags = parser.parse_args()  # This is for command line version of the code
+    flags = parser.parse_args(args = [])#This is for jupyter notebook version of the code
     # flagsVar = vars(flags)
     return flags
 
