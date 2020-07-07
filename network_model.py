@@ -188,9 +188,9 @@ class Forward(nn.Module):
             # denom = scale_grad.apply(denom)
             # constrained_denom = add(denom, self.delta)
             # e2 = div(num, constrained_denom)
-            inv = inverse_func2.apply(denom)
-            e2 = mul(num,inv)
-            # e2 = div(num, denom)
+            # inv = inverse_func2.apply(denom)
+            # e2 = mul(num,inv)
+            e2 = div(num, denom)
             # e2 = mul(add(num, denom),0.01)
             # e2 = scale_grad.apply(e2)
 
