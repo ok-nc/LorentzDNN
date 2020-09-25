@@ -5,6 +5,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.offsetbox import AnchoredText
 import pandas as pd
 # from models import evaluate_model
 import seaborn as sns; sns.set()
@@ -19,7 +20,7 @@ from PyQt5.QtWidgets import (QFileDialog, QAbstractItemView, QListView,
 
 
 def compare_spectra(Ypred, Ytruth, xmin=0.5, xmax=5, num_points=300, T=None, title=None, figsize=[10, 5],
-                    T_num=10, E1=None, E2=None, N=None, K=None, eps_inf=None, label_y1='Pred', label_y2='Truth'):
+                    E1=None, E2=None, N=None, K=None, eps_inf=None, label_y1='Pred', label_y2='Truth'):
     """
     Function to plot the comparison for predicted spectra and truth spectra
     :param Ypred:  Predicted spectra, this should be a list of number of dimension 300, numpy
@@ -30,9 +31,11 @@ def compare_spectra(Ypred, Ytruth, xmin=0.5, xmax=5, num_points=300, T=None, tit
     """
     # Make the frequency points
     frequency = xmin + (xmax - xmin) / num_points * np.arange(num_points)
-    f = plt.figure(figsize=figsize)
+    f, ax = plt.subplots(figsize=figsize)
+    # f = plt.figure(figsize=figsize)
     plt.plot(frequency, Ypred, label=label_y1)
     plt.plot(frequency, Ytruth, label=label_y2)
+    mse_loss = np.mean((Ypred - Ytruth) ** 2)
     if T is not None:
         plt.plot(frequency, T, linewidth=1, linestyle='--')
     if E2 is not None:
@@ -49,13 +52,59 @@ def compare_spectra(Ypred, Ytruth, xmin=0.5, xmax=5, num_points=300, T=None, tit
     if eps_inf is not None:
         plt.plot(frequency, np.ones(np.shape(frequency)) * eps_inf, label="eps_inf")
     # plt.ylim([0, 1])
+
+    at = AnchoredText("MSE: "+str(np.round(mse_loss, 6)),
+                      prop=dict(size=15), frameon=True,
+                      loc='lower right',
+                      )
+    at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+    ax.add_artist(at)
+
     plt.legend()
     plt.xlabel("Frequency (THz)")
-    plt.ylabel("e2")
+    plt.ylabel("Transmission")
     plt.grid(b=None)
     if title is not None:
         plt.title(title)
     return f
+
+def compare_spectra_with_params(Ypred, Ytruth, w0_pr, w0_tr, wp_pr, wp_tr, g_pr, g_tr,
+                                xmin=0.5, xmax=5, num_points=300, title=None, figsize=[10, 5],
+                                label_y1='Pred', label_y2='Truth'):
+
+    frequency = xmin + (xmax - xmin) / num_points * np.arange(num_points)
+
+    f, ax = plt.subplots(figsize=figsize)
+
+    mse_loss = np.sum((Ypred-Ytruth)**2,axis=1)
+
+    plt.plot(frequency, Ypred, label=label_y1)
+    plt.plot(frequency, Ytruth, label=label_y2)
+
+    # plt.ylim([0, 1])
+    plt.legend()
+    plt.xlabel("Frequency (THz)")
+    plt.ylabel("Transmission")
+    plt.grid(b=None)
+    ax.annotate('w0: '+str(np.round(w0_pr,3))+', '+str(np.round(w0_tr,3)),
+                xy=(3, 1), xycoords='data',
+                xytext=(0.97, 0.65), textcoords='axes fraction',
+                horizontalalignment='right', verticalalignment='top')
+    ax.annotate('wp: '+str(np.round(wp_pr,3))+', '+str(np.round(wp_tr,3)),
+                xy=(3, 1), xycoords='data',
+                xytext=(0.97, 0.55), textcoords='axes fraction',
+                horizontalalignment='right', verticalalignment='top')
+    ax.annotate('g: '+str(np.round(g_pr,3))+', '+str(np.round(g_tr,3)),
+                xy=(3, 1), xycoords='data',
+                xytext=(0.97, 0.45), textcoords='axes fraction',
+                horizontalalignment='right', verticalalignment='top')
+    ax.annotate('MSEloss: ' + str(np.round(mse_loss, 6)),
+                xy=(3, 1), xycoords='data',
+                xytext=(0.97, 0.35), textcoords='axes fraction',
+                horizontalalignment='right', verticalalignment='top')
+    if title is not None:
+        plt.title(title)
+    return f,ax
 
 def compare_Lor_params(w0, wp, g, truth, title=None, figsize=[5, 5]):
         """

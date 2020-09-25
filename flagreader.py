@@ -23,19 +23,11 @@ def read_flag():
     parser = argparse.ArgumentParser()
 
     # Model Architectural Params
-
     parser.add_argument('--use-lorentz', type=bool, default=USE_LORENTZ,
                         help='The boolean flag that indicate whether we use lorentz oscillators')
     parser.add_argument('--num-lorentz-osc', type=int, default=NUM_LORENTZ_OSC,
                         help='Number of lorentz oscillators to use')
-    parser.add_argument('--use-conv', type=bool, default=USE_CONV,
-                        help='The boolean flag that indicate whether we use upconv layer if not using lorentz')
     parser.add_argument('--linear', type=list, default=LINEAR, help='The fc layers units')
-    parser.add_argument('--conv-out-channel', type=list, default=CONV_OUT_CHANNEL,
-                        help='The output channel of your 1d conv')
-    parser.add_argument('--conv-kernel-size', type=list, default=CONV_KERNEL_SIZE,
-                        help='The kernel size of your 1d conv')
-    parser.add_argument('--conv-stride', type=list, default=CONV_STRIDE, help='The strides of your 1d conv')
 
     # Optimization params
     parser.add_argument('--optim', default=OPTIM, type=str, help='the type of optimizer that you want to use')
@@ -58,8 +50,6 @@ def read_flag():
     parser.add_argument('--use-warm-restart', default=USE_WARM_RESTART, type=bool,
                         help='Use warm restart learning rate scheduling')
     parser.add_argument('--lr-warm-restart', default=LR_WARM_RESTART, type=int, help='# steps before warm restart')
-    parser.add_argument('--err-exp', default=ERR_EXP, type=int, help='# error exponent for regularization')
-    parser.add_argument('--delta', default=DELTA, type=float, help='# error term to constrain lorentzian denom')
 
     # Data specific Params
     parser.add_argument('--x-range', type=list, default=X_RANGE, help='columns of input parameters')

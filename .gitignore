@@ -11,3 +11,7 @@ __pycache__/
 run02.sh
 */*.err
 /Pytorch learning/
+/notebooks/
+/eval/
+/video/
+/temp.ipynb

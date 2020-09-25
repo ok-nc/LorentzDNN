@@ -9,14 +9,16 @@ import time
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch import pow, add, mul, div, sqrt, abs, square
 from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
 from torchsummary import summary
 from torch.optim import lr_scheduler
 from torchviz import make_dot
-from network_model import Lorentz_layer
+# from network_model import Lorentz_layer
 from plotting_functions import plot_weights_3D, plotMSELossDistrib, \
-    compare_spectra, compare_Lor_params
+    compare_spectra, compare_spectra_with_params
+
 
 # Libs
 import matplotlib
@@ -96,41 +98,6 @@ class Network(object):
 
         return custom_loss
 
-    def lorentz_product_loss_term(self, logit=None, labels=None):
-
-        if logit is None:
-            return None
-
-        batch_size = labels.size()[0]
-        loss_penalty = 100
-        ascend = torch.tensor([0, 1, -1], requires_grad=False, dtype=torch.float32)
-        descend = torch.tensor([-1, 1, 0], requires_grad=False, dtype=torch.float32)
-
-        if torch.cuda.is_available():
-            ascend = ascend.cuda()
-            descend = descend.cuda()
-
-        max = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                              ascend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        min = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                              descend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        zeros = torch.mul(max, min).squeeze()
-        zeros = torch.logical_xor(zeros, torch.zeros_like(zeros))
-        zeros = zeros.unsqueeze(1).expand_as(self.model.w_expand)
-        # print(zeros.size())
-
-        w = torch.mul(self.model.w_expand, zeros)
-        w0 = torch.mul(self.model.w0, zeros)
-        g = torch.mul(self.model.g, zeros)
-        # print(w)
-        # print(w0)
-
-        # loss = torch.mean(torch.sum(torch.mul(torch.abs(torch.pow(w0, 2) - torch.pow(w, 2)), torch.mul(w, g)), 1))
-        loss = torch.mean(torch.sum(torch.mul(torch.abs(w-w0), g), 1))
-        # print(loss)
-        loss = loss_penalty*loss
-        return loss
-
     def peak_finder_loss(self, logit=None, labels=None):
 
         if logit is None:
@@ -158,37 +125,110 @@ class Network(object):
         # print(loss)
         return loss
 
-    def make_e2_KK_loss(self, logit=None):
-        # Enforces Kramers-Kronig causality on e2 derivative
+    def local_lorentz_loss(self,w0,g,wp,logit,labels,epoch):
 
-        if logit is None:
+        if labels is None:
             return None
+        loss = 0
 
-        num_spec_points = logit.shape[1]
-        dw = (self.flags.freq_high - self.flags.freq_low) / num_spec_points
-        w_numpy = np.arange(self.flags.freq_low, self.flags.freq_high, dw)
-        cuda = True if torch.cuda.is_available() else False
-        if cuda:
-            w = torch.tensor(w_numpy, requires_grad=False).cuda()
-        else:
-            w = torch.tensor(w_numpy, requires_grad=False)
-        w = w.expand_as(logit)
-        we_w = torch.mul(logit, w)
-        # print(logit.shape, w.shape, we_w.shape)
-        # we_w_diff = torch.zeros(we_w.shape, requires_grad=False)
-        we_w_diff = (we_w[:, 1:] - we_w[:, :-1])
-        dwe_dw = torch.div(we_w_diff, dw)
-        diff = torch.abs(torch.min(dwe_dw[:, :]))
-        diff_scaled = diff/logit.shape[0]
-        # f = compare_spectra(Ypred=we_w[0, 1:].cpu().data.numpy(),
-        #                          Ytruth=dwe_dw[0, :].cpu().data.numpy(), label_y1='w*e(w)', label_y2='d(w*e)/dw')
-        # self.log.add_figure(tag='Sample ' + str(0) + ') derivative e2 Spectrum'.format(1),
-        #                     figure=f)
+        w_numpy = np.linspace(0.5, 5, 300, dtype=np.float32)
+        w = torch.from_numpy(w_numpy).cuda()
+        w_expand = w.expand_as(labels).cuda()
+        indices = np.array(np.linspace(1, 300, 300), dtype=np.int)
+        w_indices = torch.from_numpy(indices).expand_as(labels).cuda()
 
-        # zero = torch.zeros(max.shape, requires_grad=False, dtype=torch.float32)
-        # print(loss.shape)
-        # print(diff)
-        return diff_scaled
+        for i in range(w0.size()[1]):
+            delta_w = (w[1] - w[0]).expand_as(g[:,i].unsqueeze(1))
+            width = torch.ceil(torch.div(g[:,i], delta_w))
+            # print(w_peaks[w_peaks > 0].size())
+
+            w0_expand = w0[:,i].unsqueeze(1).expand_as(w_expand)
+            g_expand = g[:,i].unsqueeze(1).expand_as(w_expand)
+            eval_matrix = torch.abs(w_expand - w0_expand) < g_expand
+            # print(eval_matrix)
+
+            logit_eval = mul(logit,eval_matrix)
+            labels_eval = mul(labels, eval_matrix)
+
+            loss += torch.mean(torch.mean((logit_eval - labels_eval) ** 2, 1))
+
+
+        if epoch != -1:
+            for j in range(self.flags.num_plot_compare):
+                f,ax = compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
+                                         Ytruth=labels[j, :].cpu().data.numpy(), xmin=self.flags.freq_low,
+                                    xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
+                self.log.add_figure(tag='Test ' + str(j) +') T Sample Spectrum'.format(1),
+                                    figure=f, global_step=epoch)
+                # f2 = compare_spectra_with_params(Ypred=e2_eval[j, :].cpu().data.numpy(),
+                #                          Ytruth=labels_eval[j, :].cpu().data.numpy(), xmin=self.flags.freq_low,
+                #                     xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
+                # self.log.add_figure(tag='Test ' + str(j) +') e2 Sample Eval Spectrum'.format(1),
+                #                     figure=f2, global_step=epoch)
+
+            f2 = plotMSELossDistrib(logit_eval.cpu().data.numpy(), labels_eval.cpu().data.numpy())
+            self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
+                                global_step=epoch)
+
+        return loss
+
+    def local_lorentz_loss2(self,w0,g,wp,labels,epoch):
+        if labels is None:
+            return None
+        batch_size = labels.size()[0]
+        w_numpy = np.linspace(0.5, 5, 300, dtype=np.float32)
+        w = torch.from_numpy(w_numpy).cuda()
+        w_expand = w.expand_as(labels).cuda()
+        indices = np.array(np.linspace(1, 300, 300), dtype=np.int)
+        w_indices = torch.from_numpy(indices).expand_as(labels).cuda()
+
+        ascend = torch.tensor([0, 1, -1], requires_grad=False, dtype=torch.float32)
+        descend = torch.tensor([-1, 1, 0], requires_grad=False, dtype=torch.float32)
+
+        if torch.cuda.is_available():
+            ascend = ascend.cuda()
+            descend = descend.cuda()
+
+        max = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
+                               ascend.view(1, 1, -1), bias=None, stride=1, padding=1))
+        min = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
+                                descend.view(1, 1, -1), bias=None, stride=1, padding=1))
+        zeros = torch.mul(max, min).squeeze()
+        zeros = torch.logical_xor(zeros, torch.zeros_like(zeros))
+
+        w_peaks = torch.mul(w_expand, zeros)
+        pk_indices = torch.mul(w_indices, zeros)
+
+        delta_w = (w[1] - w[0]).expand_as(g)
+        width = torch.ceil(torch.div(g, delta_w))
+        # print(w_peaks[w_peaks > 0].size())
+        pk_indices_expand = pk_indices[pk_indices > 0][:batch_size].unsqueeze(1).expand_as(zeros)
+        eval_matrix = torch.abs(pk_indices_expand - w_indices) < width
+
+        # w0_expand = w_peaks[w_peaks > 0][:batch_size].unsqueeze(1).expand_as(w_expand)
+        w0_expand = w0.expand_as(w_expand)
+        g_expand = g.expand_as(w_expand)
+        wp_expand = wp.expand_as(g_expand)
+
+        num = mul(square(wp_expand), mul(w_expand, g_expand))
+        denom = add(square(add(square(w0_expand), -square(w_expand))),
+                    mul(square(w_expand), square(g_expand)))
+        e2 = div(num, denom)
+
+        e2 = mul(e2,eval_matrix)
+        labels = mul(labels, eval_matrix)
+
+        if epoch != -1:
+            for j in range(self.flags.num_plot_compare):
+                f,ax = compare_spectra(Ypred=e2[j, :].cpu().data.numpy(),
+                                         Ytruth=labels[j, :].cpu().data.numpy(), E2=None, xmin=self.flags.freq_low,
+                                    xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
+                self.log.add_figure(tag='Test ' + str(j) +') e2 Sample Spectrum'.format(1),
+                                    figure=f, global_step=epoch)
+
+        loss = torch.mean(torch.mean((e2 - labels) ** 2, 1))
+
+        return loss
 
     def make_optimizer(self):
         """
@@ -224,8 +264,6 @@ class Network(object):
                                         factor=self.flags.lr_decay_rate,
                                           patience=10, verbose=True, threshold=1e-4)
 
-
-
     def save(self):
         """
         Saving the model to the current check point folder with name best_model.pt
@@ -239,13 +277,6 @@ class Network(object):
         :return:
         """
         self.model = torch.load(os.path.join(self.ckpt_dir, 'best_model.pt'))
-
-    def load_pretrain(self):
-        """
-        Loading the model from the check point folder with name best_model.pt
-        :return:
-        """
-        self.model = torch.load(os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
 
     def record_weight(self, name='Weights', layer=None, batch=999, epoch=999):
         """
@@ -303,393 +334,19 @@ class Network(object):
             self.log.add_figure(tag='1_Gradients_' + name + '_Layer'.format(1),
                                 figure=f, global_step=epoch)
 
-
-    def train(self):
-        """
-        The major training function. This starts the training using parameters given in the flags
-        :return: None
-        """
-        print("Starting training process")
-        cuda = True if torch.cuda.is_available() else False
-        if cuda:
-            self.model.cuda()
-        # self.record_weight(name='start_of_train', batch=0, epoch=0)
-
-        # Construct optimizer after the model moved to GPU
-        self.optm = self.make_optimizer()
-        self.lr_scheduler = self.make_lr_scheduler()
-
-        # self.model.divNN = torch.load('/home/omar/PycharmProjects/mlmOK_Pytorch/pretrained_div_network.pt')
-        # for param in self.model.divNN.parameters():
-        #     param.requires_grad = False
-
-        # div_op = torch.optim.Adam(self.model.divNN.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
-
-        # Start a tensorboard session for logging loss and training images
-        tb = program.TensorBoard()
-        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
-        url = tb.launch()
-        print("TensorBoard started at %s" % url)
-        # pid = os.getpid()
-        # print("PID = %d; use 'kill %d' to quit" % (pid, pid))
-
-        for epoch in range(self.flags.train_step):
-            # print("This is training Epoch {}".format(epoch))
-            # Set to Training Mode
-            train_loss = []
-            train_loss_eval_mode_list = []
-            self.model.train()
-            for j, (geometry, spectra) in enumerate(self.train_loader):
-                # Record weights and gradients to tb
-
-                # TODO: Create loop for this
-                if epoch % self.flags.record_step == 0:
-                    self.record_weight(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
-                    self.record_weight(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
-                    self.record_weight(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
-                    self.record_weight(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
-                    self.record_weight(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
-                    self.record_grad(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
-                    self.record_grad(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
-                    self.record_grad(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
-                    self.record_grad(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
-                    self.record_grad(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
-
-
-                if cuda:
-                    geometry = geometry.cuda()                          # Put data onto GPU
-                    spectra = spectra.cuda()                            # Put data onto GPU
-
-                self.optm.zero_grad()                                   # Zero the gradient first
-                logit,w0,wp,g = self.model(geometry)            # Get the output
-
-                # print("logit type:", logit.dtype)
-                # print("spectra type:", spectra.dtype)
-
-                #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
-                loss = self.make_custom_loss(logit, spectra[:, 12:])
-                if j == 0 and epoch == 0:
-                    im = make_dot(loss, params=dict(self.model.named_parameters())).render("Model Graph",
-                                                                                           format="png",
-                                                                                           directory=self.ckpt_dir)
-                # print(loss)
-                loss.backward()
-
-
-
-                # Calculate the backward gradients
-                # self.record_weight(name='after_backward', batch=j, epoch=epoch)
-
-                # Clip gradients to help with training
-                if self.flags.use_clip:
-                    if self.flags.use_clip:
-                        torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.flags.grad_clip)
-                        # torch.nn.utils.clip_grad_value_(self.model.lin_w0.parameters(), self.flags.grad_clip)
-                        # torch.nn.utils.clip_grad_value_(self.model.lin_g.parameters(), self.flags.grad_clip)
-                        # torch.nn.utils.clip_grad_value_(self.model.lin_wp.parameters(), self.flags.grad_clip)
-                        # torch.nn.utils.clip_grad_norm_(self.model.lin_w0.parameters(), self.flags.grad_clip, norm_type=2)
-                        # torch.nn.utils.clip_grad_norm_(self.model.lin_g.parameters(), self.flags.grad_clip, norm_type=2)
-                        # torch.nn.utils.clip_grad_norm_(self.model.lin_wp.parameters(), self.flags.grad_clip, norm_type=2)
-
-                if epoch % self.flags.record_step == 0:
-                    if j == 0:
-                        for k in range(self.flags.num_plot_compare):
-                            f = compare_spectra(Ypred=logit[k, :].cpu().data.numpy(),
-                                                     Ytruth=spectra[k, 12:].cpu().data.numpy(), E2=self.model.e2[k,:,:], xmin=self.flags.freq_low,
-                                                xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
-                            self.log.add_figure(tag='Test ' + str(k) +') Sample e2 Spectrum'.format(1),
-                                                figure=f, global_step=epoch)
-
-
-                self.optm.step()                                        # Move one step the optimizer
-                # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
-
-                train_loss.append(np.copy(loss.cpu().data.numpy()))     # Aggregate the loss
-                self.running_loss.append(np.copy(loss.cpu().data.numpy()))
-                # #############################################
-                # # Extra test for err_test < err_train issue #
-                # #############################################
-                self.model.eval()
-                logit,w0,wp,g = self.model(geometry)  # Get the output
-                loss = self.make_custom_loss(logit, spectra[:, 12:])  # Get the loss tensor
-                train_loss_eval_mode_list.append(np.copy(loss.cpu().data.numpy()))
-                self.model.train()
-
-            # Calculate the avg loss of training
-            train_avg_loss = np.mean(train_loss)
-            train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
-
-            if epoch % self.flags.eval_step == 0:           # For eval steps, do the evaluations and tensor board
-                # Record the training loss to tensorboard
-                #train_avg_loss = train_loss.data.numpy() / (j+1)
-                self.log.add_scalar('Loss/ Training Loss', train_avg_loss, epoch)
-                self.log.add_scalar('Loss/ Batchnorm Training Loss', train_avg_eval_mode_loss, epoch)
-                # self.log.add_scalar('Running Loss', train_avg_eval_mode_loss, epoch)
-
-                # if self.flags.use_lorentz:
-                    # for j in range(self.flags.num_plot_compare):
-                    #     f = compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
-                    #                              Ytruth=spectra[j, :].cpu().data.numpy(),
-                    #                              T=self.model.T_each_lor[j, :],
-                    #                              eps_inf = self.model.eps_inf[j])
-                    #     self.log.add_figure(tag='T{}'.format(j), figure=f, global_step=epoch)
-                    # For debugging purpose, in model:forward function reocrd the tensor
-                    # self.log.add_histogram("w0_histogram", self.model.w0s, epoch)
-                    # self.log.add_histogram("wp_histogram", self.model.wps, epoch)
-                    # self.log.add_histogram("g_histogram", self.model.gs, epoch)
-
-                # if epoch % self.flags.record_step == 0:
-                #     for j in range(self.flags.num_plot_compare):
-                #         f = compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
-                #                                  Ytruth=spectra[j, 12:].cpu().data.numpy(), E2=self.model.e2[j,:,:], xmin=self.flags.freq_low,
-                #                             xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
-                #         self.log.add_figure(tag='Test ' + str(j) +') e2 Sample Spectrum'.format(1),
-                #                             figure=f, global_step=epoch)
-
-                # Set to Evaluation Mode
-                self.model.eval()
-                print("Doing Evaluation on the model now")
-                test_loss = []
-                with torch.no_grad():
-                    for j, (geometry, spectra) in enumerate(self.test_loader):  # Loop through the eval set
-                        if cuda:
-                            geometry = geometry.cuda()
-                            spectra = spectra.cuda()
-                        logit,w0,wp,g = self.model(geometry)
-                        #loss = self.make_MSE_loss(logit, spectra)                   # compute the loss
-                        loss = self.make_custom_loss(logit, spectra[:, 12:])
-                        test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
-
-                        if j == 0 and epoch % self.flags.record_step == 0:
-                            # f2 = plotMSELossDistrib(test_loss)
-                            f2 = plotMSELossDistrib(logit.cpu().data.numpy(), spectra[:, 12:].cpu().data.numpy())
-                            self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
-                                                global_step=epoch)
-
-                # Record the testing loss to the tensorboard
-
-                test_avg_loss = np.mean(test_loss)
-                self.log.add_scalar('Loss/ Validation Loss', test_avg_loss, epoch)
-
-                print("This is Epoch %d, training loss %.5f, validation loss %.5f" \
-                      % (epoch, train_avg_eval_mode_loss, test_avg_loss ))
-
-                # Model improving, save the model
-                if test_avg_loss < self.best_validation_loss:
-                    self.best_validation_loss = test_avg_loss
-                    self.save()
-                    print("Saving the model...")
-
-                    if self.best_validation_loss < self.flags.stop_threshold:
-                        print("Training finished EARLIER at epoch %d, reaching loss of %.5f" %\
-                              (epoch, self.best_validation_loss))
-                        return None
-
-            # # Learning rate decay upon plateau
-            self.lr_scheduler.step(train_avg_loss)
-            # # self.lr_scheduler.step()
-
-
-            # if train_avg_loss < 35 and self.model.delta > 0.1:
-            #     self.model.delta = 0.1
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = param_group['lr']*0.5
-            #         print('Setting delta to '+str(self.model.delta))
-            #         print('Setting learning rate to '+str(param_group['lr']))
-            # if train_avg_loss < 10 and train_avg_loss > 5 and self.model.delta == 0.1:
-            #     self.model.delta = 0.05
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = param_group['lr']*0.5
-            #         print('Setting delta to ' + str(self.model.delta))
-            #         print('Setting learning rate to '+str(param_group['lr']))
-            # if train_avg_loss < 5 and train_avg_loss > 0.5 and self.model.delta == 0.05:
-            #     self.model.delta = 0.01
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = param_group['lr']*0.5
-            #         print('Setting delta to ' + str(self.model.delta))
-            #         print('Setting learning rate to '+str(param_group['lr']))
-            # if train_avg_loss < 0.5 and train_avg_loss > 0.2 and self.model.delta == 0.01:
-            #     self.model.delta = 0.005
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = param_group['lr']*0.5
-            #         print('Setting delta to ' + str(self.model.delta))
-            #         print('Setting learning rate to '+str(param_group['lr']))
-            # if train_avg_loss < 0.2 and self.model.delta == 0.005:
-            #     self.model.delta = 0.001
-            #     for param_group in self.optm.param_groups:
-            #         param_group['lr'] = param_group['lr']*0.5
-            #         print('Setting delta to ' + str(self.model.delta))
-            #         print('Setting learning rate to '+str(param_group['lr']))
-
-
-
-            # if epoch > 1:
-            #     self.model.delta = 0.01
-            # elif epoch > 25:
-            #     self.model.delta = 0.01
-            # elif epoch > 50:
-            #     self.model.delta = 0.01
-            # elif epoch > 100:
-            #     self.model.delta = 0.01
-
-            if self.flags.use_warm_restart:
-                if epoch % self.flags.lr_warm_restart == 0:
-                    for param_group in self.optm.param_groups:
-                        param_group['lr'] = self.flags.lr
-                        print('Resetting learning rate to %.5f' % self.flags.lr)
-
-        # print('Finished')
-        self.log.close()
-        # np.savetxt(time.strftime('%Y%m%d_%H%M%S', time.localtime())+'.csv', self.running_loss, delimiter=",")
-
-    def pretrain(self):
-        """
-        The pretraining function. This starts the pretraining using parameters given in the flags
-        :return: None
-        """
-        cuda = True if torch.cuda.is_available() else False
-        if cuda:
-            self.model.cuda()
-
-        # Construct optimizer after the model moved to GPU
-        self.optm = torch.optim.Adam(self.model.parameters(), lr=0.01, weight_decay=1e-3)
-        self.lr_scheduler = self.make_lr_scheduler()
-
-        # Start a tensorboard session for logging loss and training images
-        tb = program.TensorBoard()
-        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
-        url = tb.launch()
-
-        print("Starting pre-training process")
-        pre_train_epoch = 500
-        for epoch in range(pre_train_epoch):
-            # print("This is pretrainin Epoch {}".format(epoch))
-            # Set to Training Mode
-            train_loss = []
-            train_loss_eval_mode_list = []
-            sim_loss_list = []
-
-            self.model.train()
-            for j, (geometry, params_truth) in enumerate(self.train_loader):
-                # if j == 0 and epoch == 0:
-                    # print(geometry)
-                # Record weights and gradients to tb
-                if epoch % self.flags.record_step == 0:
-                    self.record_weight(name='Pretrain_lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
-                    self.record_weight(name='Pretrain_lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
-                    self.record_weight(name='Pretrain w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
-                    self.record_weight(name='Pretrain w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
-                    self.record_weight(name='Pretrain g', layer=self.model.lin_g, batch=j, epoch=epoch)
-
-                if cuda:
-                    geometry = geometry.cuda()  # Put data onto GPU
-                    params_truth = params_truth.cuda()  # Put data onto GPU
-                self.optm.zero_grad()  # Zero the gradient first
-                logit,w0,wp,g = self.model(geometry)  # Get the output
-                # print("label size:", params_truth.size())
-                # print("logit size:", params.size())
-
-                pretrain_loss = self.make_MSE_loss(w0, params_truth[:, :4])  # Get the loss tensor
-                pretrain_loss += self.make_MSE_loss(wp, params_truth[:, 4:8])  # Get the loss tensor
-                pretrain_loss += self.make_MSE_loss(g, params_truth[:, 8:12]*10)  # Get the loss tensor
-
-                pretrain_loss.backward()  # Calculate the backward gradients
-                # torch.nn.utils.clip_grad_value_(self.model.parameters(), 10)
-                train_loss.append(np.copy(pretrain_loss.cpu().data.numpy()))  # Aggregate the loss
-
-                #############################################
-                # Extra test for err_test < err_train issue #
-                #############################################
-                self.model.eval()
-                logit,w0,wp,g = self.model(geometry)  # Get the output
-                pretrain_loss_test = self.make_MSE_loss(w0, params_truth[:, :4])  # Get the loss tensor
-                pretrain_loss_test += self.make_MSE_loss(wp, params_truth[:, 4:8])  # Get the loss tensor
-                pretrain_loss_test += self.make_MSE_loss(g, params_truth[:, 8:12]*10)  # Get the loss tensor
-                train_loss_eval_mode_list.append(np.copy(pretrain_loss_test.cpu().data.numpy()))
-                pretrain_model_prediction = Lorentz_layer(w0, wp, g / 10)
-                sim_loss = self.make_MSE_loss(pretrain_model_prediction,params_truth[:, 12:])
-                sim_loss_list.append(sim_loss.cpu().data.numpy())
-                self.model.train()
-
-                #######################################
-                # Monitor the same loss like training #
-                #######################################
-
-                # logit, params = self.model(geometry)  # Get the output
-                # pre_train_spectra_loss = self.make_custom_loss(logit, params_truth[:, 12:])
-                # # print(pre_train_spectra_loss)
-                # # if torch.isnan(pre_train_spectra_loss):
-                # #     print("!!! YOU ENCOUNTER NAN LOSS IN PRE_TRAINING SPECTRA LOSS PART")
-                # # pre_train_spectra_loss_list.append(pre_train_spectra_loss.cpu().data.numpy())
-                #
-                # # update at the end, this is to make sure the last epoch does not update the weights
-                if epoch < pre_train_epoch - 1:
-                    self.optm.step()  # Move one step the optimizer
-
-            # Calculate the avg loss of training
-            train_avg_loss = np.mean(train_loss)
-            train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
-            sim_loss = np.mean(sim_loss_list)
-            self.running_loss.append(sim_loss)
-
-            if epoch % 10 == 0:  # Evaluate every 20 steps
-                # Record the training loss to the tensorboard
-                # train_avg_loss = train_loss.data.numpy() / (j+1)
-                self.log.add_scalar('Pretrain Loss', train_avg_loss, epoch)
-                self.log.add_scalar('Pretrain Loss/ Evaluation Mode', train_avg_eval_mode_loss, epoch)
-                self.log.add_scalar('Simulation Loss', sim_loss, epoch)
-
-
-
-                for j in range(self.flags.num_plot_compare):
-                    f = compare_Lor_params(w0=w0[j, :].cpu().data.numpy(), wp=wp[j, :].cpu().data.numpy(),
-                                           g=g[j, :].cpu().data.numpy(),
-                                           truth=params_truth[j, :12].cpu().data.numpy())
-                    self.log.add_figure(tag='Test ' + str(j) + ') e2 Lorentz Parameter Prediction'.
-                                        format(1), figure=f, global_step=epoch)
-
-                # Pretraining files contain both Lorentz parameters and simulated model spectra
-                pretrain_sim_prediction = params_truth[:, 12:]
-                pretrain_model_prediction = Lorentz_layer(w0,wp,g/10)
-
-                for j in range(self.flags.num_plot_compare):
-                    f = compare_spectra(Ypred=pretrain_model_prediction[j, :].cpu().data.numpy(),
-                                             Ytruth=pretrain_sim_prediction[j, :].cpu().data.numpy())
-                    self.log.add_figure(tag='Test ' + str(j) + ') e2 Model Prediction'.format(1),
-                                        figure=f, global_step=epoch)
-
-                # f2 = self.plotMSELossDistrib(params.cpu().data.numpy(), params_truth.cpu().data.numpy())
-                # self.log.add_figure(tag='Single Batch Pretraining MSE Histogram'.format(1), figure=f2,
-                #                     global_step=epoch)
-
-                print("This is Epoch %d, pretrain loss %.5f, eval mode loss is %.5f, and sim loss is %.5f" % (
-                epoch, train_avg_loss, train_avg_eval_mode_loss, sim_loss))
-
-                # Model improving, save the model
-                if train_avg_eval_mode_loss < self.best_pretrain_loss:
-                    self.best_pretrain_loss = train_avg_loss
-                    self.save()
-                    print("Saving the model...")
-
-                    if self.best_pretrain_loss < self.flags.stop_threshold:
-                        print("Pretraining finished EARLIER at epoch %d, reaching loss of %.5f" % \
-                              (epoch, self.best_pretrain_loss))
-                        return None
-
-            # Learning rate decay upon plateau
-            self.lr_scheduler.step(train_avg_loss)
-
-            # Save pretrained model at end
-            if epoch == pre_train_epoch-1:
-                # weights = self.model.linears[-1].weight.cpu().data.numpy()
-                # # print(weights.shape)
-                # np.savetxt('Pretrain_Lorentz_Weights.csv', weights, fmt='%.3f', delimiter=',')
-                torch.save(self.model, os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
-                # self.record_weight(name='Pretraining', batch=0, epoch=999)
-
-        self.log.close()
-
+    def init_weights(self):
+
+        for layer_name, child in self.model.named_children():
+            for param in self.model.parameters():
+                if (layer_name == 'lin_w0' or layer_name == 'lin_wp'):
+                    torch.nn.init.uniform_(child.weight, a=0.0, b=0.1)
+                elif (layer_name == 'lin_g'):
+                    torch.nn.init.uniform_(child.weight, a=0.0, b=0.1)
+                else:
+                    if ((type(child) == nn.Linear) | (type(child) == nn.Conv2d)):
+                        torch.nn.init.xavier_uniform(child.weight)
+                        if child.bias:
+                            child.bias.data.fill_(0.00)
 
     def evaluate(self, save_dir='eval/'):
         self.load()                             # load the model as constructed
@@ -717,6 +374,202 @@ class Network(object):
                     np.savetxt(fyt, spectra.cpu().data.numpy(), fmt='%.3f')
                     np.savetxt(fyp, logits.cpu().data.numpy(), fmt='%.3f')
         return Ypred_file, Ytruth_file
+
+    def train(self):
+        """
+        The major training function. This starts the training using parameters given in the flags
+        :return: None
+        """
+        print("Starting training process")
+        cuda = True if torch.cuda.is_available() else False
+        if cuda:
+            self.model.cuda()
+        # self.record_weight(name='start_of_train', batch=0, epoch=0)
+
+        # Construct optimizer after the model moved to GPU
+        self.optm = self.make_optimizer()
+        self.lr_scheduler = self.make_lr_scheduler()
+
+        self.init_weights()
+        # self.model.divNN = torch.load('/home/omar/PycharmProjects/mlmOK_Pytorch/pretrained_div_network.pt')
+        # for param in self.model.divNN.parameters():
+        #     param.requires_grad = False
+
+        # div_op = torch.optim.Adam(self.model.divNN.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+
+        # Start a tensorboard session for logging loss and training images
+        tb = program.TensorBoard()
+        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
+        url = tb.launch()
+        print("TensorBoard started at %s" % url)
+        # pid = os.getpid()
+        # print("PID = %d; use 'kill %d' to quit" % (pid, pid))
+
+        for epoch in range(self.flags.train_step):
+            # print("This is training Epoch {}".format(epoch))
+            # Set to Training Mode
+            train_loss = []
+            train_loss_eval_mode_list = []
+            self.model.train()
+            for j, (geometry, spectra) in enumerate(self.train_loader):
+                # Record weights and gradients to tb
+
+                # TODO: Create loop for this
+                # if epoch % self.flags.record_step == 0:
+                #     self.record_weight(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
+                #     self.record_weight(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
+                #     self.record_weight(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
+                #     self.record_weight(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
+                #     self.record_weight(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
+                #     self.record_grad(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
+                #     self.record_grad(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
+                #     self.record_grad(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
+                #     self.record_grad(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
+                #     self.record_grad(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
+
+
+                if cuda:
+                    geometry = geometry.cuda()                          # Put data onto GPU
+                    spectra = spectra.cuda()                            # Put data onto GPU
+
+                self.optm.zero_grad()                                   # Zero the gradient first
+                # logit = self.model(geometry)
+                # loss = self.make_MSE_loss(logit, spectra)
+                if epoch % self.flags.record_step == 0 and j==0:
+                    record = epoch
+
+                else:
+                    record = -1
+                logit,w0,wp,g = self.model(geometry)            # Get the output
+                # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
+                loss = self.make_MSE_loss(logit, spectra)  # compute the loss
+                # loss = self.make_custom_loss(logit, spectra)
+                if j == 0 and epoch == 0:
+                    im = make_dot(loss, params=dict(self.model.named_parameters())).render("Model Graph",
+                                                                                           format="png",
+                                                                                           directory=self.ckpt_dir)
+                # print(loss)
+                loss.backward()
+
+                # Calculate the backward gradients
+                # self.record_weight(name='after_backward', batch=j, epoch=epoch)
+
+                # Clip gradients to help with training
+                if self.flags.use_clip:
+                    if self.flags.use_clip:
+                        # torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.flags.grad_clip)
+                        # torch.nn.utils.clip_grad_value_(self.model.lin_w0.parameters(), self.flags.grad_clip)
+                        # torch.nn.utils.clip_grad_value_(self.model.lin_g.parameters(), self.flags.grad_clip)
+                        # torch.nn.utils.clip_grad_value_(self.model.lin_wp.parameters(), self.flags.grad_clip)
+                        # torch.nn.utils.clip_grad_norm_(self.model.lin_w0.parameters(), self.flags.grad_clip, norm_type=2)
+                        # torch.nn.utils.clip_grad_norm_(self.model.lin_g.parameters(), self.flags.grad_clip, norm_type=2)
+                        # torch.nn.utils.clip_grad_norm_(self.model.lin_wp.parameters(), self.flags.grad_clip, norm_type=2)
+
+                if epoch % self.flags.record_step == 0:
+                    if j == 0:
+                        for k in range(self.flags.num_plot_compare):
+                            f = compare_spectra(Ypred=logit[k, :].cpu().data.numpy(),
+                                                     Ytruth=spectra[k, :].cpu().data.numpy(), E2=None, xmin=self.flags.freq_low,
+                                                xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
+
+                            self.log.add_figure(tag='Test ' + str(k) +') Sample e2 Spectrum'.format(1),
+                                                figure=f, global_step=epoch)
+
+
+
+                self.optm.step()                                        # Move one step the optimizer
+                # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
+
+                train_loss.append(np.copy(loss.cpu().data.numpy()))     # Aggregate the loss
+                self.running_loss.append(np.copy(loss.cpu().data.numpy()))
+                # #############################################
+                # # Extra test for err_test < err_train issue #
+                # #############################################
+                self.model.eval()
+                logit,w0,wp,g = self.model(geometry)            # Get the output
+                # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
+                # loss = self.make_custom_loss(logit, spectra)
+                loss = self.make_MSE_loss(logit, spectra)  # compute the loss
+                train_loss_eval_mode_list.append(np.copy(loss.cpu().data.numpy()))
+                self.model.train()
+
+            # Calculate the avg loss of training
+            train_avg_loss = np.mean(train_loss)
+            train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
+
+            if epoch % self.flags.eval_step == 0:           # For eval steps, do the evaluations and tensor board
+                # Record the training loss to tensorboard
+                #train_avg_loss = train_loss.data.numpy() / (j+1)
+                self.log.add_scalar('Loss/ Training Loss', train_avg_loss, epoch)
+                self.log.add_scalar('Loss/ Batchnorm Training Loss', train_avg_eval_mode_loss, epoch)
+                # self.log.add_scalar('Running Loss', train_avg_eval_mode_loss, epoch)
+
+                # if epoch % self.flags.record_step == 0:
+                #     for j in range(self.flags.num_plot_compare):
+                #         f,ax = compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
+                #                                  Ytruth=spectra[j, :].cpu().data.numpy(), E2=self.model.e2[j,:,:], xmin=self.flags.freq_low,
+                #                             xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
+                #         self.log.add_figure(tag='Test ' + str(j) +') e2 Sample Spectrum'.format(1),
+                #                             figure=f, global_step=epoch)
+
+                # Set to Evaluation Mode
+                self.model.eval()
+                print("Doing Evaluation on the model now")
+                test_loss = []
+                with torch.no_grad():
+                    for j, (geometry, spectra) in enumerate(self.test_loader):  # Loop through the eval set
+                        if cuda:
+                            geometry = geometry.cuda()
+                            spectra = spectra.cuda()
+                        logit, w0, wp, g = self.model(geometry)  # Get the output
+                        # loss = self.local_lorentz_loss(w0, g, wp, logit,spectra, record)
+                        loss = self.make_MSE_loss(logit, spectra)                   # compute the loss
+                        # loss = self.make_custom_loss(logit, spectra)
+
+                        test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
+
+                        if j == 0 and epoch % self.flags.record_step == 0:
+                            # f2 = plotMSELossDistrib(test_loss)
+                            f2 = plotMSELossDistrib(logit.cpu().data.numpy(), spectra[:, ].cpu().data.numpy())
+                            self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
+                                                global_step=epoch)
+
+                # Record the testing loss to the tensorboard
+
+                test_avg_loss = np.mean(test_loss)
+                self.log.add_scalar('Loss/ Validation Loss', test_avg_loss, epoch)
+
+                print("This is Epoch %d, training loss %.5f, validation loss %.5f" \
+                      % (epoch, train_avg_eval_mode_loss, test_avg_loss ))
+
+                # Model improving, save the model
+                if test_avg_loss < self.best_validation_loss:
+                    self.best_validation_loss = test_avg_loss
+                    self.save()
+                    print("Saving the model...")
+
+                    if self.best_validation_loss < self.flags.stop_threshold:
+                        print("Training finished EARLIER at epoch %d, reaching loss of %.5f" %\
+                              (epoch, self.best_validation_loss))
+                        return None
+
+            # # Learning rate decay upon plateau
+            self.lr_scheduler.step(train_avg_loss)
+            # # self.lr_scheduler.step()
+
+
+            if self.flags.use_warm_restart:
+                if epoch % self.flags.lr_warm_restart == 0:
+                    for param_group in self.optm.param_groups:
+                        param_group['lr'] = self.flags.lr/10
+                        print('Resetting learning rate to %.5f' % self.flags.lr)
+
+        # print('Finished')
+        self.log.close()
+
+
+
 
 
 
