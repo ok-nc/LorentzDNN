@@ -26,13 +26,13 @@ class Forward(nn.Module):
                                 (flags.freq_high - flags.freq_low) / self.flags.num_spec_points)
 
             # Create eps_inf variable, currently set to a constant value
-            self.epsilon_inf = torch.tensor([5+0j],dtype=torch.cfloat)
+            # self.epsilon_inf = torch.tensor([5+0j],dtype=torch.cfloat)
 
             # Create the frequency tensor from numpy array, put variables on cuda if available
             cuda = True if torch.cuda.is_available() else False
             if cuda:
                 self.w = torch.tensor(w_numpy).cuda()
-                self.epsilon_inf = self.epsilon_inf.cuda()
+                # self.epsilon_inf = self.epsilon_inf.cuda()
             else:
                 self.w = torch.tensor(w_numpy)
 
@@ -54,7 +54,7 @@ class Forward(nn.Module):
         self.lin_w0 = nn.Linear(layer_size, self.flags.num_lorentz_osc, bias=False)
         self.lin_wp = nn.Linear(layer_size, self.flags.num_lorentz_osc, bias=False)
         self.lin_g = nn.Linear(layer_size, self.flags.num_lorentz_osc, bias=False)
-
+        self.lin_eps_inf = nn.Linear(layer_size, 1, bias=True)
 
     def forward(self, G):
         """
@@ -78,6 +78,8 @@ class Forward(nn.Module):
             w0 = F.relu(self.lin_w0(F.relu(out)))
             wp = F.relu(self.lin_wp(F.relu(out)))
             g = F.relu(self.lin_g(F.relu(out)))
+            eps_inf = self.lin_eps_inf(F.relu(out))
+
 
             w0_out = w0
             wp_out = wp
@@ -87,11 +89,13 @@ class Forward(nn.Module):
             wp = wp.unsqueeze(2) * 1
             g = g.unsqueeze(2) * 0.1
 
+
              # Expand them to parallelize, (batch_size, #osc, #spec_point)
             wp = wp.expand(out.size()[0], self.flags.num_lorentz_osc, self.flags.num_spec_points)
             w0 = w0.expand_as(wp)
             g = g.expand_as(w0)
             w_expand = self.w.expand_as(g)
+
 
             # Define dielectric function (real and imaginary parts separately)
             num1 = mul(square(wp), add(square(w0), -square(w_expand)))
@@ -105,7 +109,7 @@ class Forward(nn.Module):
 
             e1 = torch.sum(e1, 1).type(torch.cfloat)
             e2 = torch.sum(e2, 1).type(torch.cfloat)
-            eps_inf = self.epsilon_inf.unsqueeze(1).expand_as(e1)
+            eps_inf = eps_inf.expand_as(e1).type(torch.cfloat)
             e1 += eps_inf
             j = torch.tensor([0+1j],dtype=torch.cfloat).expand_as(e2)
             # ones = torch.tensor([1+0j],dtype=torch.cfloat).expand_as(e2)
@@ -115,7 +119,7 @@ class Forward(nn.Module):
 
             eps = add(e1, mul(e2,j))
             n = sqrt(eps)
-            d, _ = torch.max(G[:, self.flags.num_lorentz_osc:], dim=1)
+            d, _ = torch.max(G[:, 4:], dim=1)
             d = d.unsqueeze(1).expand_as(n)
             # d = G[:,1].unsqueeze(1).expand_as(n)
             if self.flags.normalize_input:

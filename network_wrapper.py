@@ -223,7 +223,7 @@ class Network(object):
                 f,ax = compare_spectra(Ypred=e2[j, :].cpu().data.numpy(),
                                          Ytruth=labels[j, :].cpu().data.numpy(), E2=None, xmin=self.flags.freq_low,
                                     xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
-                self.log.add_figure(tag='Test ' + str(j) +') e2 Sample Spectrum'.format(1),
+                self.log.add_figure(tag='Test ' + str(j) +') Transmission Sample Spectrum'.format(1),
                                     figure=f, global_step=epoch)
 
         loss = torch.mean(torch.mean((e2 - labels) ** 2, 1))
@@ -344,7 +344,7 @@ class Network(object):
                     torch.nn.init.uniform_(child.weight, a=0.0, b=0.1)
                 else:
                     if ((type(child) == nn.Linear) | (type(child) == nn.Conv2d)):
-                        torch.nn.init.xavier_uniform(child.weight)
+                        torch.nn.init.xavier_uniform_(child.weight)
                         if child.bias:
                             child.bias.data.fill_(0.00)
 
@@ -398,10 +398,10 @@ class Network(object):
         # div_op = torch.optim.Adam(self.model.divNN.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
 
         # Start a tensorboard session for logging loss and training images
-        tb = program.TensorBoard()
-        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
-        url = tb.launch()
-        print("TensorBoard started at %s" % url)
+        # tb = program.TensorBoard()
+        # tb.configure(argv=[None, '--logdir', self.ckpt_dir])
+        # url = tb.launch()
+        # print("TensorBoard started at %s" % url)
         # pid = os.getpid()
         # print("PID = %d; use 'kill %d' to quit" % (pid, pid))
 
@@ -473,7 +473,7 @@ class Network(object):
                                                      Ytruth=spectra[k, :].cpu().data.numpy(), E2=None, xmin=self.flags.freq_low,
                                                 xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
 
-                            self.log.add_figure(tag='Test ' + str(k) +') Sample e2 Spectrum'.format(1),
+                            self.log.add_figure(tag='Test ' + str(k) +') Sample Transmission Spectrum'.format(1),
                                                 figure=f, global_step=epoch)
 
 
