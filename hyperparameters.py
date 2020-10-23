@@ -3,17 +3,17 @@ Parameter file for specifying the running parameters for forward model
 """
 # Model Architectural Parameters
 USE_LORENTZ = True
-NUM_LORENTZ_OSC = 7
-LINEAR = [8, 50, 100, 200, 300]
+NUM_LORENTZ_OSC = 15
+LINEAR = [8, 300, 300]
 # LINEAR = [2*NUM_LORENTZ_OSC, 12, 25, 50, 100, 200, 300]
 
 # Optimization parameters
 OPTIM = "Adam"
 REG_SCALE = 1e-4
-BATCH_SIZE = 1024
+BATCH_SIZE = 512
 EVAL_STEP = 10
 RECORD_STEP = 500
-TRAIN_STEP = 6000
+TRAIN_STEP = 8000
 LEARN_RATE = 1e-2
 # DECAY_STEP = 25000 # This is for step decay, however we are using dynamic decaying
 LR_DECAY_RATE = 0.5
@@ -25,7 +25,7 @@ LR_WARM_RESTART = 200
 
 # Data Specific parameters
 X_RANGE = [i for i in range(2, 10)]
-Y_RANGE = [i for i in range(26, 2027)] # New frequency range: 0.8 - 1.21646
+Y_RANGE = [i for i in range(26, 2012)] # New frequency range: 0.8 - 1.21646
 FREQ_LOW = 0.8
 FREQ_HIGH = 1.21979
 NUM_SPEC_POINTS = 300

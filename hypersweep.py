@@ -11,21 +11,26 @@ if __name__ == '__main__':
     # Setting the loop for setting the parameter
     #  for learning_rate in [1e-2, 1e-3, 1e-4]:
     model_name = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    for num_osc in [5,10,15]:
-        for batchsize in [512, 1024, 2048]:
-            for regscale in [1e-3, 1e-4, 1e-5]:
+    for num_osc in [15]:
+        for layer_size in [250]:
+            lin1 = [8, layer_size, layer_size]
+            lin2 = [8, layer_size, layer_size, layer_size]
+            lin3 = [8, layer_size, layer_size, layer_size, layer_size]
+            lin4 = [8, layer_size, layer_size, layer_size, layer_size, layer_size]
+
+            for layer_num in [lin2, lin3]:
                 flags = flagreader.read_flag()  	#setting the base case
-                flags.batch_size = batchsize
-                flags.reg_scale = regscale
+                flags.linear = layer_num
                 flags.num_lorentz_osc = num_osc
                 # flags.learn_rate = learning_rate
-                # for j in range(3):
-                #     flags.model_name = model_name + "_reg" + str(regscale) + "_batch" + str(batchsize) + "_trial_"+str(j)
-                #     train.training_from_flag(flags)
+                for j in range(3):
+                    flags.model_name = model_name + "_numOsc" + str(num_osc) + "_layerSize" + str(layer_size) \
+                                       + "_layerNum" + str(len(layer_num)-1) + "_trial_"+str(j)
+                    train.training_from_flag(flags)
                 # flags.model_name = "size_" + str(size) + "_num_hidden_layers_" + str(i)
                 # flags.model_name = "size_" + str(size) + "_num_hidden_layers_" + str(i) + "_learning_rate_" + str(learning_rate)
-                flags.model_name = model_name + "_reg" + str(regscale) + "_batch" + str(batchsize) + "num_osc" + str(num_osc)
-                train.training_from_flag(flags)
+                # flags.model_name = model_name + "_reg" + str(regscale) + "_batch" + str(batchsize) + "num_osc" + str(num_osc)
+                # train.training_from_flag(flags)
 
 # if __name__ == '__main__':
 #
