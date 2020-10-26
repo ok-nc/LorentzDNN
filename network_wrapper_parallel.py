@@ -9,6 +9,7 @@ import time
 import torch
 from torch import nn
 import torch.nn.functional as F
+import math
 from torch import pow, add, mul, div, sqrt, abs, square
 from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
@@ -440,9 +441,21 @@ class Network(object):
 
                 else:
                     record = -1
-                logit,w0,wp,g = self.model(geometry)            # Get the output
+                logit = self.model(geometry[:,0:2]).type(torch.cfloat)
+                logit += self.model(geometry[:,2:4])
+                logit += self.model(geometry[:,4:6])
+                logit += self.model(geometry[:,6:8])
                 # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
-                loss = self.make_MSE_loss(logit, spectra)  # compute the loss
+                n = sqrt(logit).type(torch.cfloat)
+                d, _ = torch.max(geometry[:, :4], dim=1)
+                d = d.unsqueeze(1).expand_as(n)
+                # d = G[:,1].unsqueeze(1).expand_as(n)
+                if self.flags.normalize_input:
+                    d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
+                                self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
+                alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
+                T = mul(div(4 * n.real, add(square(n.real + 1), square(n.imag))), alpha).float()
+                loss = self.make_MSE_loss(T, spectra)  # compute the loss
                 # loss = self.make_custom_loss(logit, spectra)
                 if j == 0 and epoch == 0:
                     im = make_dot(loss, params=dict(self.model.named_parameters())).render("Model Graph",
@@ -469,9 +482,8 @@ class Network(object):
                 if epoch % self.flags.record_step == 0:
                     if j == 0:
                         for k in range(self.flags.num_plot_compare):
-                            f = compare_spectra(Ypred=logit[k, :].cpu().data.numpy(),
-                                                     Ytruth=spectra[k, :].cpu().data.numpy(), w_0=w0[k, :].cpu().data.numpy(),
-                                                w_p=wp[k, :].cpu().data.numpy(), g=g[k, :].cpu().data.numpy(),
+                            f = compare_spectra(Ypred=T[k, :].cpu().data.numpy(),
+                                                     Ytruth=spectra[k, :].cpu().data.numpy(),
                                                 E2=None, test_var=None, xmin=self.flags.freq_low,
                                                 xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
 
@@ -489,10 +501,21 @@ class Network(object):
                 # # Extra test for err_test < err_train issue #
                 # #############################################
                 self.model.eval()
-                logit,w0,wp,g = self.model(geometry)            # Get the output
+                logit = self.model(geometry[:, 0:2]).type(torch.cfloat)
+                logit += self.model(geometry[:, 2:4])
+                logit += self.model(geometry[:, 4:6])
+                logit += self.model(geometry[:, 6:8])
                 # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
-                # loss = self.make_custom_loss(logit, spectra)
-                loss = self.make_MSE_loss(logit, spectra)  # compute the loss
+                n = sqrt(logit).type(torch.cfloat)
+                d, _ = torch.max(geometry[:, :4], dim=1)
+                d = d.unsqueeze(1).expand_as(n)
+                # d = G[:,1].unsqueeze(1).expand_as(n)
+                if self.flags.normalize_input:
+                    d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
+                            self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
+                alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
+                T = mul(div(4 * n.real, add(square(n.real + 1), square(n.imag))), alpha).float()
+                loss = self.make_MSE_loss(T, spectra)  # compute the loss
                 train_loss_eval_mode_list.append(np.copy(loss.cpu().data.numpy()))
                 self.model.train()
 
@@ -524,16 +547,28 @@ class Network(object):
                         if cuda:
                             geometry = geometry.cuda()
                             spectra = spectra.cuda()
-                        logit, w0, wp, g = self.model(geometry)  # Get the output
-                        # loss = self.local_lorentz_loss(w0, g, wp, logit,spectra, record)
-                        loss = self.make_MSE_loss(logit, spectra)                   # compute the loss
+                        logit = self.model(geometry[:, 0:2]).type(torch.cfloat)
+                        logit += self.model(geometry[:, 2:4])
+                        logit += self.model(geometry[:, 4:6])
+                        logit += self.model(geometry[:, 6:8])
+                        # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
+                        n = sqrt(logit).type(torch.cfloat)
+                        d, _ = torch.max(geometry[:, :4], dim=1)
+                        d = d.unsqueeze(1).expand_as(n)
+                        # d = G[:,1].unsqueeze(1).expand_as(n)
+                        if self.flags.normalize_input:
+                            d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
+                                    self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
+                        alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
+                        T = mul(div(4 * n.real, add(square(n.real + 1), square(n.imag))), alpha).float()
+                        loss = self.make_MSE_loss(T, spectra)  # compute the loss               # compute the loss
                         # loss = self.make_custom_loss(logit, spectra)
 
                         test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
 
                         if j == 0 and epoch % self.flags.record_step == 0:
                             # f2 = plotMSELossDistrib(test_loss)
-                            f2 = plotMSELossDistrib(logit.cpu().data.numpy(), spectra[:, ].cpu().data.numpy())
+                            f2 = plotMSELossDistrib(T.cpu().data.numpy(), spectra[:, ].cpu().data.numpy())
                             self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
                                                 global_step=epoch)
 

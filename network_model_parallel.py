@@ -118,19 +118,21 @@ class Forward(nn.Module):
                 # ones = ones.cuda()
 
             eps = add(e1, mul(e2,j))
-            n = sqrt(eps)
-            self.test_var = n.imag.data.cpu().numpy()
-            d, _ = torch.max(G[:, 4:], dim=1)
-            d = d.unsqueeze(1).expand_as(n)
-            # d = G[:,1].unsqueeze(1).expand_as(n)
-            if self.flags.normalize_input:
-                d = d * (self.flags.geoboundary[-1]-self.flags.geoboundary[-2]) * 0.5 + (self.flags.geoboundary[-1]+self.flags.geoboundary[-2]) * 0.5
-            alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
+            return eps
 
-            # R = div(square((n-ones).abs()),square((n+ones).abs()))
-            # T_coeff = ones - R
-            T = mul(div(4*n.real, add(square(n.real+1), square(n.imag))), alpha).float()
+            # n = sqrt(eps)
+            # self.test_var = n.imag.data.cpu().numpy()
+            # d, _ = torch.max(G[:, 4:], dim=1)
+            # d = d.unsqueeze(1).expand_as(n)
+            # # d = G[:,1].unsqueeze(1).expand_as(n)
+            # if self.flags.normalize_input:
+            #     d = d * (self.flags.geoboundary[-1]-self.flags.geoboundary[-2]) * 0.5 + (self.flags.geoboundary[-1]+self.flags.geoboundary[-2]) * 0.5
+            # alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
+            #
+            # # R = div(square((n-ones).abs()),square((n+ones).abs()))
+            # # T_coeff = ones - R
+            # T = mul(div(4*n.real, add(square(n.real+1), square(n.imag))), alpha).float()
 
-            return T, w0_out, wp_out, g_out
+            # return T
 
-        return out,out,out,out
+        return out

@@ -51,7 +51,8 @@ def check_data(input_directory, col_range=range(0, 8), col_names=('r1','r2','r3'
 
 
 def read_data( x_range, y_range, geoboundary,  batch_size=128,
-                 data_dir=os.path.abspath(''), rand_seed=1234, normalize_input = True, test_ratio = 0.2):
+                 data_dir=os.path.abspath(''), rand_seed=1234, normalize_input = True,
+               test_ratio = 0.2, shuffle = True):
     """
       :param input_size: input size of the arrays
       :param output_size: output size of the arrays
@@ -113,9 +114,9 @@ def read_data( x_range, y_range, geoboundary,  batch_size=128,
     # train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size)
     # test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size)
     train_loader = FastTensorDataLoader(torch.from_numpy(ftrTrain),
-                                        torch.from_numpy(lblTrain), batch_size=batch_size, shuffle=True)
+                                        torch.from_numpy(lblTrain), batch_size=batch_size, shuffle=shuffle)
     test_loader = FastTensorDataLoader(torch.from_numpy(ftrTest),
-                                       torch.from_numpy(lblTest), batch_size=batch_size, shuffle=True)
+                                       torch.from_numpy(lblTest), batch_size=batch_size, shuffle=shuffle)
 
     return train_loader, test_loader
 

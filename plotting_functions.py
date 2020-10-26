@@ -58,27 +58,27 @@ def compare_spectra(Ypred, Ytruth, xmin=0.8, xmax=1.21979, num_points=300, T=Non
                       )
     at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
     ax.add_artist(at)
-
-    at_1 = AnchoredText("w0: " + str(np.round(w_0, 2)),
-                      prop=dict(size=10), frameon=True,
-                      loc='upper left',
-                      )
-    at_1.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
-    ax.add_artist(at_1)
-
-    at_2 = AnchoredText("g: " + str(np.round(g, 2)),
-                        prop=dict(size=10), frameon=True,
-                        loc='upper right',
-                        )
-    at_2.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
-    ax.add_artist(at_2)
-
-    at_3 = AnchoredText("wp: " + str(np.round(w_p, 2)),
-                        prop=dict(size=10), frameon=True,
-                        loc='lower left', bbox_to_anchor=(0., 0.),
-                        )
-    at_3.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
-    ax.add_artist(at_3)
+    if w_0 is not None:
+        at_1 = AnchoredText("w0: " + str(np.round(w_0, 2)),
+                          prop=dict(size=10), frameon=True,
+                          loc='upper left',
+                          )
+        at_1.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_1)
+    if g is not None:
+        at_2 = AnchoredText("g: " + str(np.round(g, 2)),
+                            prop=dict(size=10), frameon=True,
+                            loc='upper right',
+                            )
+        at_2.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_2)
+    if w_p is not None:
+        at_3 = AnchoredText("wp: " + str(np.round(w_p, 2)),
+                            prop=dict(size=10), frameon=True,
+                            loc='lower left', bbox_to_anchor=(0., 0.),
+                            )
+        at_3.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_3)
 
 
 
