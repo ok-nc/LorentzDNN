@@ -3,8 +3,8 @@ Parameter file for specifying the running parameters for forward model
 """
 # Model Architectural Parameters
 USE_LORENTZ = True
-NUM_LORENTZ_OSC = 15
-LINEAR = [8, 300, 300]
+NUM_LORENTZ_OSC = 5
+LINEAR = [2, 300, 300]
 # LINEAR = [2*NUM_LORENTZ_OSC, 12, 25, 50, 100, 200, 300]
 
 # Optimization parameters
@@ -33,7 +33,7 @@ FORCE_RUN = True
 DATA_DIR = ''                # For local usage
 # DATA_DIR = 'C:/Users/labuser/mlmOK_Pytorch/'                # For Omar office desktop usage
 # DATA_DIR = '/home/omar/PycharmProjects/mlmOK_Pytorch/'  # For Omar laptop usage
-GEOBOUNDARY =[42, 52, 30, 55]
+GEOBOUNDARY =[30, 55, 42, 52]
 NORMALIZE_INPUT = True
 TEST_RATIO = 0.2
 

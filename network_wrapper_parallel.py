@@ -441,10 +441,10 @@ class Network(object):
 
                 else:
                     record = -1
-                logit = self.model(geometry[:,0:2]).type(torch.cfloat)
-                logit += self.model(geometry[:,2:4])
-                logit += self.model(geometry[:,4:6])
-                logit += self.model(geometry[:,6:8])
+                logit = self.model(geometry[:,0::4]).type(torch.cfloat)
+                logit += self.model(geometry[:,1::4])
+                logit += self.model(geometry[:,2::4])
+                logit += self.model(geometry[:,3::4])
                 # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
                 n = sqrt(logit).type(torch.cfloat)
                 d, _ = torch.max(geometry[:, :4], dim=1)
