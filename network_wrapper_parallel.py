@@ -441,20 +441,24 @@ class Network(object):
 
                 else:
                     record = -1
-                logit = self.model(geometry[:,0::4]).type(torch.cfloat)
-                logit += self.model(geometry[:,1::4])
-                logit += self.model(geometry[:,2::4])
-                logit += self.model(geometry[:,3::4])
-                # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
-                n = sqrt(logit).type(torch.cfloat)
-                d, _ = torch.max(geometry[:, :4], dim=1)
-                d = d.unsqueeze(1).expand_as(n)
-                # d = G[:,1].unsqueeze(1).expand_as(n)
-                if self.flags.normalize_input:
-                    d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
-                                self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
-                alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
-                T = mul(div(4 * n.real, add(square(n.real + 1), square(n.imag))), alpha).float()
+
+                T = self.model(geometry)
+
+                # logit = self.model(geometry[:,0::4]).type(torch.cfloat)
+                # logit += self.model(geometry[:,1::4])
+                # logit += self.model(geometry[:,2::4])
+                # logit += self.model(geometry[:,3::4])
+                # # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
+                # n = sqrt(logit).type(torch.cfloat)
+                # d, _ = torch.max(geometry[:, :4], dim=1)
+                # d = d.unsqueeze(1).expand_as(n)
+                # # d = G[:,1].unsqueeze(1).expand_as(n)
+                # if self.flags.normalize_input:
+                #     d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
+                #                 self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
+                # alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
+                # T = mul(div(4 * n.real, add(square(n.real + 1), square(n.imag))), alpha).float()
+
                 loss = self.make_MSE_loss(T, spectra)  # compute the loss
                 # loss = self.make_custom_loss(logit, spectra)
                 if j == 0 and epoch == 0:
@@ -501,20 +505,23 @@ class Network(object):
                 # # Extra test for err_test < err_train issue #
                 # #############################################
                 self.model.eval()
-                logit = self.model(geometry[:, 0:2]).type(torch.cfloat)
-                logit += self.model(geometry[:, 2:4])
-                logit += self.model(geometry[:, 4:6])
-                logit += self.model(geometry[:, 6:8])
-                # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
-                n = sqrt(logit).type(torch.cfloat)
-                d, _ = torch.max(geometry[:, :4], dim=1)
-                d = d.unsqueeze(1).expand_as(n)
-                # d = G[:,1].unsqueeze(1).expand_as(n)
-                if self.flags.normalize_input:
-                    d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
-                            self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
-                alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
-                T = mul(div(4 * n.real, add(square(n.real + 1), square(n.imag))), alpha).float()
+                T = self.model(geometry)
+
+                # logit = self.model(geometry[:, 0:2]).type(torch.cfloat)
+                # logit += self.model(geometry[:, 2:4])
+                # logit += self.model(geometry[:, 4:6])
+                # logit += self.model(geometry[:, 6:8])
+                # # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
+                # n = sqrt(logit).type(torch.cfloat)
+                # d, _ = torch.max(geometry[:, :4], dim=1)
+                # d = d.unsqueeze(1).expand_as(n)
+                # # d = G[:,1].unsqueeze(1).expand_as(n)
+                # if self.flags.normalize_input:
+                #     d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
+                #             self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
+                # alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
+                # T = mul(div(4 * n.real, add(square(n.real + 1), square(n.imag))), alpha).float()
+
                 loss = self.make_MSE_loss(T, spectra)  # compute the loss
                 train_loss_eval_mode_list.append(np.copy(loss.cpu().data.numpy()))
                 self.model.train()
@@ -547,20 +554,24 @@ class Network(object):
                         if cuda:
                             geometry = geometry.cuda()
                             spectra = spectra.cuda()
-                        logit = self.model(geometry[:, 0:2]).type(torch.cfloat)
-                        logit += self.model(geometry[:, 2:4])
-                        logit += self.model(geometry[:, 4:6])
-                        logit += self.model(geometry[:, 6:8])
-                        # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
-                        n = sqrt(logit).type(torch.cfloat)
-                        d, _ = torch.max(geometry[:, :4], dim=1)
-                        d = d.unsqueeze(1).expand_as(n)
-                        # d = G[:,1].unsqueeze(1).expand_as(n)
-                        if self.flags.normalize_input:
-                            d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
-                                    self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
-                        alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
-                        T = mul(div(4 * n.real, add(square(n.real + 1), square(n.imag))), alpha).float()
+
+                        T = self.model(geometry)
+
+                        # logit = self.model(geometry[:, 0:2]).type(torch.cfloat)
+                        # logit += self.model(geometry[:, 2:4])
+                        # logit += self.model(geometry[:, 4:6])
+                        # logit += self.model(geometry[:, 6:8])
+                        # # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
+                        # n = sqrt(logit).type(torch.cfloat)
+                        # d, _ = torch.max(geometry[:, :4], dim=1)
+                        # d = d.unsqueeze(1).expand_as(n)
+                        # # d = G[:,1].unsqueeze(1).expand_as(n)
+                        # if self.flags.normalize_input:
+                        #     d = d * (self.flags.geoboundary[-1] - self.flags.geoboundary[-2]) * 0.5 + (
+                        #             self.flags.geoboundary[-1] + self.flags.geoboundary[-2]) * 0.5
+                        # alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
+                        # T = mul(div(4 * n.real, add(square(n.real + 1), square(n.imag))), alpha).float()
+
                         loss = self.make_MSE_loss(T, spectra)  # compute the loss               # compute the loss
                         # loss = self.make_custom_loss(logit, spectra)
 
