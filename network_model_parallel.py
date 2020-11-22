@@ -79,9 +79,9 @@ class Forward(nn.Module):
             eps_inf = eps_inf.expand(out.size()[0], self.flags.num_spec_points).type(torch.cfloat)
 
             out1 = self.cyl1_eps(out1, self.flags.int_layer_str*int2)
-            out2 = self.cyl2_eps(out2, self.flags.int_layer_str*int2)
-            out3 = self.cyl3_eps(out3, self.flags.int_layer_str*int2)
-            out4 = self.cyl4_eps(out4, self.flags.int_layer_str*int2)
+            out2 = self.cyl1_eps(out2, self.flags.int_layer_str*int2)
+            out3 = self.cyl1_eps(out3, self.flags.int_layer_str*int2)
+            out4 = self.cyl1_eps(out4, self.flags.int_layer_str*int2)
 
             eps = (out1 + out2 + out3 + out4 + eps_inf).type(torch.cfloat)
 

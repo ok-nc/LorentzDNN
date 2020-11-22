@@ -97,12 +97,13 @@ class Network(object):
         # additional_loss_term = self.peak_finder_loss(logit, labels)
         # custom_loss += additional_loss_term
 
-        logit_diff = 715*(logit[:,1:]-logit[:,:-1])
-        labels_diff = 715*(labels[:, 1:] - labels[:, :-1])
+        # logit_diff = 715*(logit[:,1:]-logit[:,:-1])
+        # labels_diff = 715*(labels[:, 1:] - labels[:, :-1])
         # deriv_loss = nn.functional.mse_loss(logit_diff, labels_diff, reduction='mean')
         mse_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
-        deriv_loss = nn.functional.l1_loss(logit_diff, labels_diff, reduction='mean')
-        custom_loss = 0.01*deriv_loss + mse_loss
+        # deriv_loss = nn.functional.l1_loss(logit_diff, labels_diff, reduction='mean')
+        # custom_loss = 0.01*deriv_loss + mse_loss
+        custom_loss = mse_loss
 
         return custom_loss
 
