@@ -50,6 +50,9 @@ def read_flag():
     parser.add_argument('--use-warm-restart', default=USE_WARM_RESTART, type=bool,
                         help='Use warm restart learning rate scheduling')
     parser.add_argument('--lr-warm-restart', default=LR_WARM_RESTART, type=int, help='# steps before warm restart')
+    parser.add_argument('--int-layer-size', default=INT_LAYER_SIZE, type=int, help='size of input interaction layer')
+    parser.add_argument('--int-layer-str', default=INT_LAYER_STR, type=float, help='input coupling strength')
+
 
     # Data specific Params
     parser.add_argument('--x-range', type=list, default=X_RANGE, help='columns of input parameters')
