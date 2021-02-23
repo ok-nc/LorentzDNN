@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (QFileDialog, QAbstractItemView, QListView,
 
 
 def compare_spectra(Ypred, Ytruth, xmin=0.8, xmax=1.21979, num_points=300, T=None, title=None, figsize=[10, 5],
-                    w_0=None, w_p=None, g=None, E1=None, E2=None, eps_inf=None, test_var = None, label_y1='Pred', label_y2='Truth'):
+                    w_0=None, w_p=None, g=None, E1=None, E2=None, eps_inf=None, d=None, test_var = None, label_y1='Pred', label_y2='Truth'):
     """
     Function to plot the comparison for predicted spectra and truth spectra
     :param Ypred:  Predicted spectra, this should be a list of number of dimension 300, numpy
@@ -43,13 +43,11 @@ def compare_spectra(Ypred, Ytruth, xmin=0.8, xmax=1.21979, num_points=300, T=Non
         for i in range(np.shape(E2)[0]):
             plt.plot(frequency, E2[i, :], linewidth=1, linestyle=':', label="E2" + str(i))
     if E1 is not None:
-        for i in range(np.shape(E1)[0]):
-            plt.plot(frequency, E1[i, :], linewidth=1, linestyle='-', label="E1" + str(i))
+        plt.plot(frequency, E1, linewidth=1, linestyle='-', label="E1")
 
     if test_var is not None:
         plt.plot(frequency, test_var, label="k")
-    if eps_inf is not None:
-        plt.plot(frequency, np.ones(np.shape(frequency)) * eps_inf, label="eps_inf")
+
     # plt.ylim([0, 1])
 
     at = AnchoredText("MSE: " + str(np.round(mse_loss, 6)),
@@ -66,7 +64,7 @@ def compare_spectra(Ypred, Ytruth, xmin=0.8, xmax=1.21979, num_points=300, T=Non
         at_1.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
         ax.add_artist(at_1)
     if g is not None:
-        at_2 = AnchoredText("g: " + str(np.round(g, 2)),
+        at_2 = AnchoredText("g: " + str(np.round(g, 3)),
                             prop=dict(size=10), frameon=True,
                             loc='upper right',
                             )
@@ -79,6 +77,20 @@ def compare_spectra(Ypred, Ytruth, xmin=0.8, xmax=1.21979, num_points=300, T=Non
                             )
         at_3.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
         ax.add_artist(at_3)
+    if eps_inf is not None:
+        at_4 = AnchoredText("eps_inf: " + str(np.round(eps_inf, 3)),
+                            prop=dict(size=10), frameon=True,
+                            loc='lower right',
+                            )
+        at_4.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_4)
+    if d is not None:
+        at_5 = AnchoredText("d: " + str(np.round(d, 2)),
+                            prop=dict(size=10), frameon=True,
+                            loc='lower center',
+                            )
+        at_5.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_5)
 
 
 

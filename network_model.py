@@ -62,6 +62,8 @@ class Forward(nn.Module):
         :param G: The input geometry (Since this is a forward network)
         :return: S: The 300 dimension spectra
         """
+        # self.geom = G
+        # out = self.geom
         out = G
 
         # For the linear part
@@ -78,16 +80,17 @@ class Forward(nn.Module):
             w0 = F.relu(self.lin_w0(F.relu(out)))
             wp = F.relu(self.lin_wp(F.relu(out)))
             g = F.relu(self.lin_g(F.relu(out)))
-            eps_inf = self.lin_eps_inf(F.relu(out))
+            eps_inf = F.relu(self.lin_eps_inf(F.relu(out)))
 
 
             w0_out = w0
             wp_out = wp
             g_out = g
+            eps_inf_out = eps_inf
 
-            w0 = w0.unsqueeze(2) * 1
-            wp = wp.unsqueeze(2) * 1
-            g = g.unsqueeze(2) * 0.1
+            w0 = w0.unsqueeze(2)
+            wp = wp.unsqueeze(2)
+            g = g.unsqueeze(2)
 
 
              # Expand them to parallelize, (batch_size, #osc, #spec_point)
@@ -95,6 +98,7 @@ class Forward(nn.Module):
             w0 = w0.expand_as(wp)
             g = g.expand_as(w0)
             w_expand = self.w.expand_as(g)
+            w_2 = self.w.expand(out.size()[0],self.flags.num_spec_points)
 
 
             # Define dielectric function (real and imaginary parts separately)
@@ -105,12 +109,14 @@ class Forward(nn.Module):
             e2 = div(num2, denom)
 
             # self.e2 = e2.data.cpu().numpy()                 # This is for plotting the imaginary part
-            # # self.e1 = e1.data.cpu().numpy()                 # This is for plotting the imaginary part
 
             e1 = torch.sum(e1, 1).type(torch.cfloat)
+
             e2 = torch.sum(e2, 1).type(torch.cfloat)
             eps_inf = eps_inf.expand_as(e1).type(torch.cfloat)
             e1 += eps_inf
+            # self.e1 = e1.data.cpu().numpy()                 # This is for plotting the imaginary part
+
             j = torch.tensor([0+1j],dtype=torch.cfloat).expand_as(e2)
             # ones = torch.tensor([1+0j],dtype=torch.cfloat).expand_as(e2)
             if torch.cuda.is_available():
@@ -125,12 +131,12 @@ class Forward(nn.Module):
             # d = G[:,1].unsqueeze(1).expand_as(n)
             if self.flags.normalize_input:
                 d = d * (self.flags.geoboundary[-1]-self.flags.geoboundary[-2]) * 0.5 + (self.flags.geoboundary[-1]+self.flags.geoboundary[-2]) * 0.5
-            alpha = torch.exp(-0.0005 * 4 * math.pi * mul(d, n.imag))
+            abs = torch.exp(-0.0033 * 4 * math.pi * mul(mul(d, n.imag),w_2))
 
             # R = div(square((n-ones).abs()),square((n+ones).abs()))
             # T_coeff = ones - R
-            T = mul(div(4*n.real, add(square(n.real+1), square(n.imag))), alpha).float()
+            T = mul(div(4*n.real, add(square(n.real+1), square(n.imag))), abs).float()
 
-            return T, w0_out, wp_out, g_out
+            return T, w0_out, wp_out, g_out,eps_inf_out,d[:,0]
 
-        return out,out,out,out
+        return out,out,out,out,out,out

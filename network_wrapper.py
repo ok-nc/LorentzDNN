@@ -78,7 +78,9 @@ class Network(object):
         """
         if logit is None:
             return None
-        MSE_loss = nn.functional.mse_loss(logit, labels)          # The MSE Loss of the network
+        MSE_loss = nn.functional.mse_loss(logit, labels, reduction='mean')          # The MSE Loss of the network
+        MSE_loss *= 10000
+        # print(MSE_loss)
         return MSE_loss
 
     def make_custom_loss(self, logit=None, labels=None):
@@ -338,10 +340,12 @@ class Network(object):
 
         for layer_name, child in self.model.named_children():
             for param in self.model.parameters():
-                if (layer_name == 'lin_w0' or layer_name == 'lin_wp'):
-                    torch.nn.init.uniform_(child.weight, a=0.0, b=0.1)
+                if (layer_name == 'lin_w0'):
+                    torch.nn.init.uniform_(child.weight, a=0.0, b=0.02)
+                elif (layer_name == 'lin_wp'):
+                    torch.nn.init.uniform_(child.weight, a=0.0, b=0.02)
                 elif (layer_name == 'lin_g'):
-                    torch.nn.init.uniform_(child.weight, a=0.0, b=0.1)
+                    torch.nn.init.uniform_(child.weight, a=0.0, b=0.02)
                 else:
                     if ((type(child) == nn.Linear) | (type(child) == nn.Conv2d)):
                         torch.nn.init.xavier_uniform_(child.weight)
@@ -369,10 +373,10 @@ class Network(object):
                     if cuda:
                         geometry = geometry.cuda()
                         spectra = spectra.cuda()
-                    logits = self.model(geometry)
+                    logit,w0,wp,g,eps_inf,d = self.model(geometry)
                     np.savetxt(fxt, geometry.cpu().data.numpy(), fmt='%.3f')
                     np.savetxt(fyt, spectra.cpu().data.numpy(), fmt='%.3f')
-                    np.savetxt(fyp, logits.cpu().data.numpy(), fmt='%.3f')
+                    np.savetxt(fyp, logit.cpu().data.numpy(), fmt='%.3f')
         return Ypred_file, Ytruth_file
 
     def train(self):
@@ -397,11 +401,11 @@ class Network(object):
 
         # div_op = torch.optim.Adam(self.model.divNN.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
 
-        # Start a tensorboard session for logging loss and training images
+        # # Start a tensorboard session for logging loss and training images
         tb = program.TensorBoard()
         tb.configure(argv=[None, '--logdir', self.ckpt_dir])
         url = tb.launch()
-        # print("TensorBoard started at %s" % url)
+        print("TensorBoard started at %s" % url)
         # pid = os.getpid()
         # print("PID = %d; use 'kill %d' to quit" % (pid, pid))
 
@@ -440,9 +444,11 @@ class Network(object):
 
                 else:
                     record = -1
-                logit,w0,wp,g = self.model(geometry)            # Get the output
+                logit,w0,wp,g,eps_inf,d = self.model(geometry)            # Get the output
                 # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
                 loss = self.make_MSE_loss(logit, spectra)  # compute the loss
+
+
                 # loss = self.make_custom_loss(logit, spectra)
                 if j == 0 and epoch == 0:
                     im = make_dot(loss, params=dict(self.model.named_parameters())).render("Model Graph",
@@ -450,7 +456,7 @@ class Network(object):
                                                                                            directory=self.ckpt_dir)
                 # print(loss)
                 loss.backward()
-
+                # print(self.model.lin_w0.weight.grad.size())
                 # Calculate the backward gradients
                 # self.record_weight(name='after_backward', batch=j, epoch=epoch)
 
@@ -472,11 +478,22 @@ class Network(object):
                             f = compare_spectra(Ypred=logit[k, :].cpu().data.numpy(),
                                                      Ytruth=spectra[k, :].cpu().data.numpy(), w_0=w0[k, :].cpu().data.numpy(),
                                                 w_p=wp[k, :].cpu().data.numpy(), g=g[k, :].cpu().data.numpy(),
-                                                E2=None, test_var=None, xmin=self.flags.freq_low,
+                                                E2=None , eps_inf= eps_inf[k].cpu().data.numpy(),
+                                                d=d[k].cpu().data.numpy(), test_var=None, xmin=self.flags.freq_low,
                                                 xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
 
                             self.log.add_figure(tag='Test ' + str(k) +') Sample Transmission Spectrum'.format(1),
                                                 figure=f, global_step=epoch)
+
+                            # f2 = compare_spectra(Ypred=logit[k, :].cpu().data.numpy(),
+                            #                          Ytruth=spectra[k, :].cpu().data.numpy(), w_0=w0[k, :].cpu().data.numpy(),
+                            #                     w_p=wp[k, :].cpu().data.numpy(), g=g[k, :].cpu().data.numpy(),
+                            #                     E1=self.model.e1[k], E2=self.model.e2[k], eps_inf= eps_inf[k].cpu().data.numpy(),
+                            #                     d=d[k].cpu().data.numpy(), test_var=None, xmin=self.flags.freq_low,
+                            #                     xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
+
+                            # self.log.add_figure(tag='Test ' + str(k) +') Optical Constants'.format(1),
+                            #                     figure=f2, global_step=epoch)
 
 
 
@@ -489,7 +506,7 @@ class Network(object):
                 # # Extra test for err_test < err_train issue #
                 # #############################################
                 self.model.eval()
-                logit,w0,wp,g = self.model(geometry)            # Get the output
+                logit,w0,wp,g,eps_inf,d = self.model(geometry)            # Get the output
                 # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
                 # loss = self.make_custom_loss(logit, spectra)
                 loss = self.make_MSE_loss(logit, spectra)  # compute the loss
@@ -519,31 +536,36 @@ class Network(object):
                 self.model.eval()
                 print("Doing Evaluation on the model now")
                 test_loss = []
+                test_loss2 = []
                 with torch.no_grad():
                     for j, (geometry, spectra) in enumerate(self.test_loader):  # Loop through the eval set
                         if cuda:
                             geometry = geometry.cuda()
                             spectra = spectra.cuda()
-                        logit, w0, wp, g = self.model(geometry)  # Get the output
+                        logit,w0,wp,g,eps_inf,d = self.model(geometry)  # Get the output
                         # loss = self.local_lorentz_loss(w0, g, wp, logit,spectra, record)
-                        loss = self.make_MSE_loss(logit, spectra)                   # compute the loss
+                        loss = self.make_MSE_loss(logit, spectra)
+                        loss2 = self.make_custom_loss(logit, spectra)# compute the loss
                         # loss = self.make_custom_loss(logit, spectra)
 
                         test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
+                        test_loss2.append(np.copy(loss2.cpu().data.numpy()))
 
-                        if j == 0 and epoch % self.flags.record_step == 0:
-                            # f2 = plotMSELossDistrib(test_loss)
-                            f2 = plotMSELossDistrib(logit.cpu().data.numpy(), spectra[:, ].cpu().data.numpy())
-                            self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
-                                                global_step=epoch)
+                        # if j == 0 and epoch > 10 and epoch % self.flags.record_step == 0:
+                        #     # f2 = plotMSELossDistrib(test_loss)
+                        #     f2 = plotMSELossDistrib(logit.cpu().data.numpy(), spectra[:, ].cpu().data.numpy())
+                        #     self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
+                        #                         global_step=epoch)
 
                 # Record the testing loss to the tensorboard
 
                 test_avg_loss = np.mean(test_loss)
+                test_avg_loss2 = np.mean(test_loss2)
                 self.log.add_scalar('Loss/ Validation Loss', test_avg_loss, epoch)
+                self.log.add_scalar('Validation MSE Loss', test_avg_loss2, epoch)
 
-                print("This is Epoch %d, training loss %.5f, validation loss %.5f" \
-                      % (epoch, train_avg_eval_mode_loss, test_avg_loss ))
+                print("This is Epoch %d, training loss %.5f, validation loss %.5f, MSE loss %.5f" \
+                      % (epoch, train_avg_eval_mode_loss, test_avg_loss,test_avg_loss2 ))
 
                 # Model improving, save the model
                 if test_avg_loss < self.best_validation_loss:

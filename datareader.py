@@ -91,8 +91,10 @@ def read_data( x_range, y_range, geoboundary,  batch_size=128,
     # if len(lblTrain[0]) > 2000:                                 # For Omar data set
     #     lblTrain = lblTrain[::, len(lblTest[0])-1800::6]
     #     lblTest = lblTest[::, len(lblTest[0])-1800::6]
-    lblTrain = lblTrain[:,:1200:4]
-    lblTest = lblTest[:,:1200:4]
+    # lblTrain = lblTrain[:,:1200:4]
+    # lblTest = lblTest[:,:1200:4]
+    lblTrain = lblTrain[:,:1800:6]
+    lblTest = lblTest[:,:1800:6]
 
     # print('length of downsampled train spectra is {} for first, {} for final, '.format(len(lblTrain[0]),
     #                                                                                    len(lblTrain[-1])),

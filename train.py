@@ -7,10 +7,10 @@ from sys import exit
 # Other custom network modules
 import flagreader
 import datareader
-from network_wrapper_parallel import Network
-from network_model_parallel import Forward
-# from network_wrapper import Network
-# from network_model import Forward
+# from network_wrapper_parallel import Network
+# from network_model_parallel import Forward
+from network_wrapper import Network
+from network_model import Forward
 from logging_functions import write_flags_and_BVE
 
 
