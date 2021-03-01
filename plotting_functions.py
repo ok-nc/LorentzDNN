@@ -19,8 +19,8 @@ from PyQt5.QtWidgets import (QFileDialog, QAbstractItemView, QListView,
                              QTreeView, QApplication, QDialog)
 
 
-def compare_spectra(Ypred, Ytruth, xmin=0.5, xmax=5, num_points=300, T=None, title=None, figsize=[10, 5],
-                    E1=None, E2=None, N=None, K=None, eps_inf=None, label_y1='Pred', label_y2='Truth'):
+def compare_spectra(Ypred, Ytruth, xmin=0.8, xmax=1.21979, num_points=300, T=None, title=None, figsize=[10, 5],
+                    w_0=None, w_p=None, g=None, E1=None, E2=None, eps_inf=None, d=None, test_var = None, label_y1='Pred', label_y2='Truth'):
     """
     Function to plot the comparison for predicted spectra and truth spectra
     :param Ypred:  Predicted spectra, this should be a list of number of dimension 300, numpy
@@ -43,22 +43,56 @@ def compare_spectra(Ypred, Ytruth, xmin=0.5, xmax=5, num_points=300, T=None, tit
         for i in range(np.shape(E2)[0]):
             plt.plot(frequency, E2[i, :], linewidth=1, linestyle=':', label="E2" + str(i))
     if E1 is not None:
-        for i in range(np.shape(E1)[0]):
-            plt.plot(frequency, E1[i, :], linewidth=1, linestyle='-', label="E1" + str(i))
-    if N is not None:
-        plt.plot(frequency, N, linewidth=1, linestyle=':', label="N")
-    if K is not None:
-        plt.plot(frequency, K, linewidth=1, linestyle='-', label="K")
-    if eps_inf is not None:
-        plt.plot(frequency, np.ones(np.shape(frequency)) * eps_inf, label="eps_inf")
+        plt.plot(frequency, E1, linewidth=1, linestyle='-', label="E1")
+
+    if test_var is not None:
+        plt.plot(frequency, test_var, label="k")
+
     # plt.ylim([0, 1])
 
-    at = AnchoredText("MSE: "+str(np.round(mse_loss, 6)),
+    at = AnchoredText("MSE: " + str(np.round(mse_loss, 6)),
                       prop=dict(size=15), frameon=True,
-                      loc='lower right',
+                      loc='lower left',
                       )
     at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
     ax.add_artist(at)
+    if w_0 is not None:
+        at_1 = AnchoredText("w0: " + str(np.round(w_0, 2)),
+                          prop=dict(size=10), frameon=True,
+                          loc='upper left',
+                          )
+        at_1.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_1)
+    if g is not None:
+        at_2 = AnchoredText("g: " + str(np.round(g, 3)),
+                            prop=dict(size=10), frameon=True,
+                            loc='upper right',
+                            )
+        at_2.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_2)
+    if w_p is not None:
+        at_3 = AnchoredText("wp: " + str(np.round(w_p, 2)),
+                            prop=dict(size=10), frameon=True,
+                            loc='lower left', bbox_to_anchor=(0., 0.),
+                            )
+        at_3.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_3)
+    if eps_inf is not None:
+        at_4 = AnchoredText("eps_inf: " + str(np.round(eps_inf, 3)),
+                            prop=dict(size=10), frameon=True,
+                            loc='lower right',
+                            )
+        at_4.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_4)
+    if d is not None:
+        at_5 = AnchoredText("d: " + str(np.round(d, 2)),
+                            prop=dict(size=10), frameon=True,
+                            loc='lower center',
+                            )
+        at_5.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+        ax.add_artist(at_5)
+
+
 
     plt.legend()
     plt.xlabel("Frequency (THz)")

@@ -9,6 +9,7 @@ import time
 import torch
 from torch import nn
 import torch.nn.functional as F
+import math
 from torch import pow, add, mul, div, sqrt, abs, square
 from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
@@ -78,9 +79,7 @@ class Network(object):
         """
         if logit is None:
             return None
-        MSE_loss = nn.functional.mse_loss(logit, labels, reduction='mean')          # The MSE Loss of the network
-        MSE_loss *= 10000
-        # print(MSE_loss)
+        MSE_loss = nn.functional.mse_loss(logit, labels,reduction='mean')          # The MSE Loss of the network
         return MSE_loss
 
     def make_custom_loss(self, logit=None, labels=None):
@@ -92,145 +91,25 @@ class Network(object):
 
         # custom_loss = torch.mean(torch.mean((logit - labels)**self.flags.err_exp, 1))
         # custom_loss = torch.mean(torch.norm((logit-labels),p=4))/logit.shape[0]
-        custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
+        # custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
         # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # additional_loss_term = self.lorentz_product_loss_term(logit, labels)
         # additional_loss_term = self.peak_finder_loss(logit, labels)
         # custom_loss += additional_loss_term
 
+        # logit_diff = 715*(logit[:,1:]-logit[:,:-1])
+        # labels_diff = 715*(labels[:, 1:] - labels[:, :-1])
+        # deriv_loss = nn.functional.mse_loss(logit_diff, labels_diff, reduction='mean')
+        mse_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
+        mse_loss *= 10000
+        # print(mse_loss)
+        # deriv_loss = nn.functional.l1_loss(logit_diff, labels_diff, reduction='mean')
+        # custom_loss = 0.01*deriv_loss + mse_loss
+        custom_loss = mse_loss
+
         return custom_loss
 
-    def peak_finder_loss(self, logit=None, labels=None):
 
-        if logit is None:
-            return None
-        batch_size = labels.size()[0]
-        loss_penalty = 10000
-
-        ascend = torch.tensor([0, 1, -1], requires_grad=False, dtype=torch.float32)
-        descend = torch.tensor([-1, 1, 0], requires_grad=False, dtype=torch.float32)
-
-        if torch.cuda.is_available():
-            ascend = ascend.cuda()
-            descend = descend.cuda()
-
-        max = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                               ascend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        min = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                                descend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        zeros = torch.mul(max, min).squeeze()
-        zeros = torch.logical_xor(zeros, torch.zeros_like(zeros))
-        loss = torch.mean(torch.mean(torch.mul(torch.abs(logit-labels), zeros), 1))
-        # loss = 0
-        # print(loss)
-        loss = loss*100
-        # print(loss)
-        return loss
-
-    def local_lorentz_loss(self,w0,g,wp,logit,labels,epoch):
-
-        if labels is None:
-            return None
-        loss = 0
-
-        w_numpy = np.linspace(0.5, 5, 300, dtype=np.float32)
-        w = torch.from_numpy(w_numpy).cuda()
-        w_expand = w.expand_as(labels).cuda()
-        indices = np.array(np.linspace(1, 300, 300), dtype=np.int)
-        w_indices = torch.from_numpy(indices).expand_as(labels).cuda()
-
-        for i in range(w0.size()[1]):
-            delta_w = (w[1] - w[0]).expand_as(g[:,i].unsqueeze(1))
-            width = torch.ceil(torch.div(g[:,i], delta_w))
-            # print(w_peaks[w_peaks > 0].size())
-
-            w0_expand = w0[:,i].unsqueeze(1).expand_as(w_expand)
-            g_expand = g[:,i].unsqueeze(1).expand_as(w_expand)
-            eval_matrix = torch.abs(w_expand - w0_expand) < g_expand
-            # print(eval_matrix)
-
-            logit_eval = mul(logit,eval_matrix)
-            labels_eval = mul(labels, eval_matrix)
-
-            loss += torch.mean(torch.mean((logit_eval - labels_eval) ** 2, 1))
-
-
-        if epoch != -1:
-            for j in range(self.flags.num_plot_compare):
-                f,ax = compare_spectra(Ypred=logit[j, :].cpu().data.numpy(),
-                                         Ytruth=labels[j, :].cpu().data.numpy(), xmin=self.flags.freq_low,
-                                    xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
-                self.log.add_figure(tag='Test ' + str(j) +') T Sample Spectrum'.format(1),
-                                    figure=f, global_step=epoch)
-                # f2 = compare_spectra_with_params(Ypred=e2_eval[j, :].cpu().data.numpy(),
-                #                          Ytruth=labels_eval[j, :].cpu().data.numpy(), xmin=self.flags.freq_low,
-                #                     xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
-                # self.log.add_figure(tag='Test ' + str(j) +') e2 Sample Eval Spectrum'.format(1),
-                #                     figure=f2, global_step=epoch)
-
-            f2 = plotMSELossDistrib(logit_eval.cpu().data.numpy(), labels_eval.cpu().data.numpy())
-            self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
-                                global_step=epoch)
-
-        return loss
-
-    def local_lorentz_loss2(self,w0,g,wp,labels,epoch):
-        if labels is None:
-            return None
-        batch_size = labels.size()[0]
-        w_numpy = np.linspace(0.5, 5, 300, dtype=np.float32)
-        w = torch.from_numpy(w_numpy).cuda()
-        w_expand = w.expand_as(labels).cuda()
-        indices = np.array(np.linspace(1, 300, 300), dtype=np.int)
-        w_indices = torch.from_numpy(indices).expand_as(labels).cuda()
-
-        ascend = torch.tensor([0, 1, -1], requires_grad=False, dtype=torch.float32)
-        descend = torch.tensor([-1, 1, 0], requires_grad=False, dtype=torch.float32)
-
-        if torch.cuda.is_available():
-            ascend = ascend.cuda()
-            descend = descend.cuda()
-
-        max = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                               ascend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        min = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                                descend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        zeros = torch.mul(max, min).squeeze()
-        zeros = torch.logical_xor(zeros, torch.zeros_like(zeros))
-
-        w_peaks = torch.mul(w_expand, zeros)
-        pk_indices = torch.mul(w_indices, zeros)
-
-        delta_w = (w[1] - w[0]).expand_as(g)
-        width = torch.ceil(torch.div(g, delta_w))
-        # print(w_peaks[w_peaks > 0].size())
-        pk_indices_expand = pk_indices[pk_indices > 0][:batch_size].unsqueeze(1).expand_as(zeros)
-        eval_matrix = torch.abs(pk_indices_expand - w_indices) < width
-
-        # w0_expand = w_peaks[w_peaks > 0][:batch_size].unsqueeze(1).expand_as(w_expand)
-        w0_expand = w0.expand_as(w_expand)
-        g_expand = g.expand_as(w_expand)
-        wp_expand = wp.expand_as(g_expand)
-
-        num = mul(square(wp_expand), mul(w_expand, g_expand))
-        denom = add(square(add(square(w0_expand), -square(w_expand))),
-                    mul(square(w_expand), square(g_expand)))
-        e2 = div(num, denom)
-
-        e2 = mul(e2,eval_matrix)
-        labels = mul(labels, eval_matrix)
-
-        if epoch != -1:
-            for j in range(self.flags.num_plot_compare):
-                f,ax = compare_spectra(Ypred=e2[j, :].cpu().data.numpy(),
-                                         Ytruth=labels[j, :].cpu().data.numpy(), E2=None, xmin=self.flags.freq_low,
-                                    xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
-                self.log.add_figure(tag='Test ' + str(j) +') Transmission Sample Spectrum'.format(1),
-                                    figure=f, global_step=epoch)
-
-        loss = torch.mean(torch.mean((e2 - labels) ** 2, 1))
-
-        return loss
 
     def make_optimizer(self):
         """
@@ -340,17 +219,25 @@ class Network(object):
 
         for layer_name, child in self.model.named_children():
             for param in self.model.parameters():
+
                 if (layer_name == 'lin_w0'):
                     torch.nn.init.uniform_(child.weight, a=0.0, b=0.02)
-                elif (layer_name == 'lin_wp'):
+                if (layer_name == 'lin_wp'):
                     torch.nn.init.uniform_(child.weight, a=0.0, b=0.02)
                 elif (layer_name == 'lin_g'):
                     torch.nn.init.uniform_(child.weight, a=0.0, b=0.02)
+                # elif (layer_name == 'input_coupl1' or layer_name == 'input_coupl2'):
+                #     torch.nn.init.zeros_(child.weight)
+                    # torch.nn.init.normal_(child.weight, std=0.01)
+                # elif (layer_name == 'lin_eps_inf'):
+                    # torch.nn.init.uniform_(child.weight,a=1, b=3)
                 else:
                     if ((type(child) == nn.Linear) | (type(child) == nn.Conv2d)):
                         torch.nn.init.xavier_uniform_(child.weight)
-                        if child.bias:
-                            child.bias.data.fill_(0.00)
+
+                        # torch.nn.init.uniform_(child.weight, a=0.0, b=0.05)
+                        # if child.bias:
+                        #     child.bias.data.fill_(0.00)
 
     def evaluate(self, save_dir='eval/'):
         self.load()                             # load the model as constructed
@@ -373,10 +260,10 @@ class Network(object):
                     if cuda:
                         geometry = geometry.cuda()
                         spectra = spectra.cuda()
-                    logit,w0,wp,g,eps_inf,d = self.model(geometry)
+                    logits = self.model(geometry)
                     np.savetxt(fxt, geometry.cpu().data.numpy(), fmt='%.3f')
                     np.savetxt(fyt, spectra.cpu().data.numpy(), fmt='%.3f')
-                    np.savetxt(fyp, logit.cpu().data.numpy(), fmt='%.3f')
+                    np.savetxt(fyp, logits.cpu().data.numpy(), fmt='%.3f')
         return Ypred_file, Ytruth_file
 
     def train(self):
@@ -392,7 +279,27 @@ class Network(object):
 
         # Construct optimizer after the model moved to GPU
         self.optm = self.make_optimizer()
+        # params = list(self.model.cyl1.parameters())
+        # params.extend(list(self.model.cyl1_eps.parameters()))
+        # params.extend(list(self.model.cyl2_eps.parameters()))
+        # params.extend(list(self.model.cyl3_eps.parameters()))
+        # params.extend(list(self.model.cyl4_eps.parameters()))
+        # # params.extend(list(self.model.lin_g.parameters()))
+        # # params.extend(list(self.model.lin_w0.parameters()))
+        # # params.extend(list(self.model.lin_wp.parameters()))
+        # params.extend(list(self.model.lin_eps_inf.parameters()))
+        # self.optm = torch.optim.Adam(params,lr=self.flags.lr, weight_decay=self.flags.reg_scale)
         self.lr_scheduler = self.make_lr_scheduler()
+        #
+        # params2 = list(self.model.input_coupl1.parameters())
+        # params2.extend(list(self.model.bn1.parameters()))
+        # params2.extend(list(self.model.input_coupl2.parameters()))
+        # params2.extend(list(self.model.bn2.parameters()))
+        # self.optm2 = torch.optim.Adam(params2, lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+        # self.lr_scheduler2 = lr_scheduler.ReduceLROnPlateau(optimizer=self.optm2, mode='min',
+        #                                 factor=self.flags.lr_decay_rate,
+        #                                   patience=10, verbose=True, threshold=1e-4)
+
 
         self.init_weights()
         # self.model.divNN = torch.load('/home/omar/PycharmProjects/mlmOK_Pytorch/pretrained_div_network.pt')
@@ -401,7 +308,7 @@ class Network(object):
 
         # div_op = torch.optim.Adam(self.model.divNN.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
 
-        # # Start a tensorboard session for logging loss and training images
+        # Start a tensorboard session for logging loss and training images
         # tb = program.TensorBoard()
         # tb.configure(argv=[None, '--logdir', self.ckpt_dir])
         # url = tb.launch()
@@ -409,34 +316,54 @@ class Network(object):
         # pid = os.getpid()
         # print("PID = %d; use 'kill %d' to quit" % (pid, pid))
 
+        # interaction_epoch = 0
+
         for epoch in range(self.flags.train_step):
             # print("This is training Epoch {}".format(epoch))
             # Set to Training Mode
+
+        #     if epoch == interaction_epoch:
+        #         for layer_name, child in self.model.named_children():
+        #             for param in self.model.parameters():
+        #                 if (layer_name == 'input_coupl1' or layer_name == 'input_coupl2'):
+        #                     torch.nn.init.normal_(child.weight, std=0.01)
+
             train_loss = []
             train_loss_eval_mode_list = []
             self.model.train()
+
+            # if epoch < 100:
+            #     self.train_loader.batch_size = 64
+            # elif epoch == 100:
+            #     print('Pre-training with small batchsize done')
+            #     self.train_loader.batch_size = self.flags.batch_size
+            #     self.flags.lr = self.flags.lr/100
+
             for j, (geometry, spectra) in enumerate(self.train_loader):
                 # Record weights and gradients to tb
 
                 # TODO: Create loop for this
                 # if epoch % self.flags.record_step == 0:
-                #     self.record_weight(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
-                #     self.record_weight(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
-                #     self.record_weight(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
-                #     self.record_weight(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
-                #     self.record_weight(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
-                #     self.record_grad(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
-                #     self.record_grad(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
-                #     self.record_grad(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
-                #     self.record_grad(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
-                #     self.record_grad(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
-
+                # #     self.record_weight(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
+                # #     self.record_weight(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
+                # #     self.record_weight(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
+                # #     self.record_weight(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
+                # #     self.record_weight(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
+                # #     self.record_weight(name='w_p', layer=self.model.lin_wp, batch=j, epoch=epoch)
+                # #     self.record_weight(name='w_0', layer=self.model.lin_w0, batch=j, epoch=epoch)
+                # #     self.record_grad(name='g', layer=self.model.lin_g, batch=j, epoch=epoch)
+                # #     self.record_grad(name='lin0', layer=self.model.linears[0], batch=j, epoch=epoch)
+                # #     self.record_grad(name='lin1', layer=self.model.linears[1], batch=j, epoch=epoch)
+                #     self.record_weight(name='cyl1', layer=self.model.cyl1.linears[-1], batch=j, epoch=epoch)
+                #     self.record_weight(name='int1', layer=self.model.input_coupl2, batch=j, epoch=epoch)
+                #     self.record_weight(name='eps_inf', layer=self.model.lin_eps_inf, batch=j, epoch=epoch)
 
                 if cuda:
                     geometry = geometry.cuda()                          # Put data onto GPU
                     spectra = spectra.cuda()                            # Put data onto GPU
 
-                self.optm.zero_grad()                                   # Zero the gradient first
+                self.optm.zero_grad()
+                # self.optm2.zero_grad()   # Zero the gradient first
                 # logit = self.model(geometry)
                 # loss = self.make_MSE_loss(logit, spectra)
                 if epoch % self.flags.record_step == 0 and j==0:
@@ -444,11 +371,11 @@ class Network(object):
 
                 else:
                     record = -1
-                logit,w0,wp,g,eps_inf,d = self.model(geometry)            # Get the output
-                # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
-                loss = self.make_MSE_loss(logit, spectra)  # compute the loss
 
+                T,w0,wp,g,eps_inf = self.model(geometry)
 
+                loss = self.make_custom_loss(T, spectra)  # compute the loss
+                # print(loss)
                 # loss = self.make_custom_loss(logit, spectra)
                 if j == 0 and epoch == 0:
                     im = make_dot(loss, params=dict(self.model.named_parameters())).render("Model Graph",
@@ -456,48 +383,27 @@ class Network(object):
                                                                                            directory=self.ckpt_dir)
                 # print(loss)
                 loss.backward()
-                # print(self.model.lin_w0.weight.grad.size())
-                # Calculate the backward gradients
-                # self.record_weight(name='after_backward', batch=j, epoch=epoch)
-
-                # Clip gradients to help with training
-                if self.flags.use_clip:
-                    if self.flags.use_clip:
-                        # torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.flags.grad_clip)
-                        # torch.nn.utils.clip_grad_value_(self.model.lin_w0.parameters(), self.flags.grad_clip)
-                        # torch.nn.utils.clip_grad_value_(self.model.lin_g.parameters(), self.flags.grad_clip)
-                        # torch.nn.utils.clip_grad_value_(self.model.lin_wp.parameters(), self.flags.grad_clip)
-                        # torch.nn.utils.clip_grad_norm_(self.model.lin_w0.parameters(), self.flags.grad_clip, norm_type=2)
-                        # torch.nn.utils.clip_grad_norm_(self.model.lin_g.parameters(), self.flags.grad_clip, norm_type=2)
-                        # torch.nn.utils.clip_grad_norm_(self.model.lin_wp.parameters(), self.flags.grad_clip, norm_type=2)
 
                 if epoch % self.flags.record_step == 0:
                     if j == 0:
                         for k in range(self.flags.num_plot_compare):
-                            f = compare_spectra(Ypred=logit[k, :].cpu().data.numpy(),
-                                                     Ytruth=spectra[k, :].cpu().data.numpy(), w_0=w0[k, :].cpu().data.numpy(),
+                            f = compare_spectra(Ypred=T[k, :].cpu().data.numpy(),
+                                                     Ytruth=spectra[k, :].cpu().data.numpy(),
+                                                w_0=w0[k, :].cpu().data.numpy(),
                                                 w_p=wp[k, :].cpu().data.numpy(), g=g[k, :].cpu().data.numpy(),
-                                                E2=None , eps_inf= eps_inf[k].cpu().data.numpy(),
-                                                d=d[k].cpu().data.numpy(), test_var=None, xmin=self.flags.freq_low,
+                                                E2=None, eps_inf= eps_inf[k].cpu().data.numpy(),
+                                                test_var=None, xmin=self.flags.freq_low,
                                                 xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
 
                             self.log.add_figure(tag='Test ' + str(k) +') Sample Transmission Spectrum'.format(1),
                                                 figure=f, global_step=epoch)
 
-                            # f2 = compare_spectra(Ypred=logit[k, :].cpu().data.numpy(),
-                            #                          Ytruth=spectra[k, :].cpu().data.numpy(), w_0=w0[k, :].cpu().data.numpy(),
-                            #                     w_p=wp[k, :].cpu().data.numpy(), g=g[k, :].cpu().data.numpy(),
-                            #                     E1=self.model.e1[k], E2=self.model.e2[k], eps_inf= eps_inf[k].cpu().data.numpy(),
-                            #                     d=d[k].cpu().data.numpy(), test_var=None, xmin=self.flags.freq_low,
-                            #                     xmax=self.flags.freq_high, num_points=self.flags.num_spec_points)
-
-                            # self.log.add_figure(tag='Test ' + str(k) +') Optical Constants'.format(1),
-                            #                     figure=f2, global_step=epoch)
 
 
-
-                self.optm.step()                                        # Move one step the optimizer
+                # if epoch < 2000:
+                self.optm.step()
+                # if (epoch > 2000):
+                #     self.optm2.step()  # Move one step the optimizer
                 # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
 
                 train_loss.append(np.copy(loss.cpu().data.numpy()))     # Aggregate the loss
@@ -506,10 +412,10 @@ class Network(object):
                 # # Extra test for err_test < err_train issue #
                 # #############################################
                 self.model.eval()
-                logit,w0,wp,g,eps_inf,d = self.model(geometry)            # Get the output
-                # loss = self.local_lorentz_loss(w0,g,wp,logit,spectra,record)
-                # loss = self.make_custom_loss(logit, spectra)
-                loss = self.make_MSE_loss(logit, spectra)  # compute the loss
+                T,w0,wp,g,eps_inf = self.model(geometry)
+
+
+                loss = self.make_custom_loss(T, spectra)  # compute the loss
                 train_loss_eval_mode_list.append(np.copy(loss.cpu().data.numpy()))
                 self.model.train()
 
@@ -542,20 +448,23 @@ class Network(object):
                         if cuda:
                             geometry = geometry.cuda()
                             spectra = spectra.cuda()
-                        logit,w0,wp,g,eps_inf,d = self.model(geometry)  # Get the output
-                        # loss = self.local_lorentz_loss(w0, g, wp, logit,spectra, record)
-                        loss = self.make_MSE_loss(logit, spectra)
-                        loss2 = self.make_custom_loss(logit, spectra)# compute the loss
+
+                        T,w0,wp,g,eps_inf = self.model(geometry)
+
+                        loss = self.make_custom_loss(T, spectra)  # compute the loss               # compute the loss
+                        loss2 = self.make_MSE_loss(T, spectra)
                         # loss = self.make_custom_loss(logit, spectra)
 
                         test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
                         test_loss2.append(np.copy(loss2.cpu().data.numpy()))
 
-                        # if j == 0 and epoch > 10 and epoch % self.flags.record_step == 0:
+                        # if j == 0 and epoch % self.flags.record_step == 0 and epoch > 20:
                         #     # f2 = plotMSELossDistrib(test_loss)
-                        #     f2 = plotMSELossDistrib(logit.cpu().data.numpy(), spectra[:, ].cpu().data.numpy())
+                        #     f2 = plotMSELossDistrib(T.cpu().data.numpy(), spectra[:, ].cpu().data.numpy())
                         #     self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
                         #                         global_step=epoch)
+
+
 
                 # Record the testing loss to the tensorboard
 
@@ -564,8 +473,8 @@ class Network(object):
                 self.log.add_scalar('Loss/ Validation Loss', test_avg_loss, epoch)
                 self.log.add_scalar('Validation MSE Loss', test_avg_loss2, epoch)
 
-                print("This is Epoch %d, training loss %.5f, validation loss %.5f, MSE loss %.5f" \
-                      % (epoch, train_avg_eval_mode_loss, test_avg_loss,test_avg_loss2 ))
+                print("This is Epoch %d, training loss %.5f, validation loss %.5f" \
+                      % (epoch, train_avg_eval_mode_loss, test_avg_loss ))
 
                 # Model improving, save the model
                 if test_avg_loss < self.best_validation_loss:
@@ -578,6 +487,9 @@ class Network(object):
                               (epoch, self.best_validation_loss))
                         return None
 
+
+
+
             # # Learning rate decay upon plateau
             self.lr_scheduler.step(train_avg_loss)
             # # self.lr_scheduler.step()
@@ -586,8 +498,28 @@ class Network(object):
             if self.flags.use_warm_restart:
                 if epoch % self.flags.lr_warm_restart == 0:
                     for param_group in self.optm.param_groups:
-                        param_group['lr'] = self.flags.lr/10
+                        param_group['lr'] = self.flags.lr
                         print('Resetting learning rate to %.5f' % self.flags.lr)
+
+
+            # # Separate learning rates for interaction layer
+            #
+            # # # Learning rate decay upon plateau
+            # # if epoch < 2000:
+            # self.lr_scheduler.step(train_avg_loss)
+            # if epoch > interaction_epoch:
+            #     self.lr_scheduler2.step(train_avg_loss)
+            # # # self.lr_scheduler.step()
+            #
+            #
+            # if self.flags.use_warm_restart:
+            #     if epoch % self.flags.lr_warm_restart == 0:
+            #         for param_group in self.optm.param_groups:
+            #             param_group['lr'] = self.flags.lr/10
+            #             print('Resetting learning rate to %.5f' % self.flags.lr)
+            #         if epoch > interaction_epoch:
+            #             for param_group in self.optm2.param_groups:
+            #                 param_group['lr'] = self.flags.lr / 10
 
         # print('Finished')
         self.log.close()
