@@ -26,8 +26,8 @@ INT_LAYER_SIZE = 100
 INT_LAYER_STR = .01
 
 # Data Specific parameters
-X_RANGE = [i for i in range(2, 10)]
-Y_RANGE = [i for i in range(10, 2012)]
+X_RANGE = [i for i in range(0, 8)]
+Y_RANGE = [i for i in range(8, 2010)]
 FREQ_LOW = 0.8
 FREQ_HIGH = 1.5
 # FREQ_HIGH = 1.21979
@@ -43,5 +43,5 @@ TEST_RATIO = 0.2
 # Running specific
 USE_CPU_ONLY = False
 MODEL_NAME  = None 
-EVAL_MODEL = "Best_Model"
+EVAL_MODEL = "20210226_090858_bs128_layerSize250_layerNum3_trial_4"
 NUM_PLOT_COMPARE = 10

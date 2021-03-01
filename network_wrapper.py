@@ -402,10 +402,10 @@ class Network(object):
         # div_op = torch.optim.Adam(self.model.divNN.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
 
         # # Start a tensorboard session for logging loss and training images
-        tb = program.TensorBoard()
-        tb.configure(argv=[None, '--logdir', self.ckpt_dir])
-        url = tb.launch()
-        print("TensorBoard started at %s" % url)
+        # tb = program.TensorBoard()
+        # tb.configure(argv=[None, '--logdir', self.ckpt_dir])
+        # url = tb.launch()
+        # print("TensorBoard started at %s" % url)
         # pid = os.getpid()
         # print("PID = %d; use 'kill %d' to quit" % (pid, pid))
 

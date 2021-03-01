@@ -126,11 +126,14 @@ class Forward(nn.Module):
             eps = add(e1, mul(e2,j))
             n = sqrt(eps)
             self.test_var = n.imag.data.cpu().numpy()
-            d, _ = torch.max(G[:, 4:], dim=1)
+            # d, _ = torch.max(G[:, :4], dim=1)
+            d = torch.mean(G[:, :4], dim=1)
             d = d.unsqueeze(1).expand_as(n)
             # d = G[:,1].unsqueeze(1).expand_as(n)
             if self.flags.normalize_input:
-                d = d * (self.flags.geoboundary[-1]-self.flags.geoboundary[-2]) * 0.5 + (self.flags.geoboundary[-1]+self.flags.geoboundary[-2]) * 0.5
+                # d = d * (self.flags.geoboundary[-1]-self.flags.geoboundary[-2]) * 0.5 + (self.flags.geoboundary[-1]+self.flags.geoboundary[-2]) * 0.5
+                d = d * 0.5 * (self.flags.geoboundary[1]-self.flags.geoboundary[0]) + (self.flags.geoboundary[1]+self.flags.geoboundary[0]) * 0.5
+
             abs = torch.exp(-0.0033 * 4 * math.pi * mul(mul(d, n.imag),w_2))
 
             # R = div(square((n-ones).abs()),square((n+ones).abs()))
