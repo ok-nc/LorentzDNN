@@ -47,4 +47,5 @@ Longer term
 3. Active/transfer learning
 4. Lorentz activation functions
 
-
+# 2022.05
+# Repository inactive. See LNN repository for updated implementation of Lorentz neural network. 
